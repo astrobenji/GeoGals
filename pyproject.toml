@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "geogals"
+version = "0.1.0"
+description = ""
+authors = ["Benjamin Andrew Metha <methab@student.unimelb.edu.au>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
