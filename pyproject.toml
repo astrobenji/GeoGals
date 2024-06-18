@@ -1,12 +1,15 @@
 [tool.poetry]
-name = "geogals"
+name = "GeoGals"
 version = "0.1.0"
-description = ""
+description = "A package for using geostatistical methods on real and simulated galaxy data."
 authors = ["Benjamin Andrew Metha <methab@student.unimelb.edu.au>"]
+license = "MIT"
 readme = "README.md"
+homepage = "https://github.com/astrobenji/geogals"
+repository = "https://github.com/astrobenji/geogals"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.7"
 
 
 [build-system]
