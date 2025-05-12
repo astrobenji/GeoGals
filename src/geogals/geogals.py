@@ -249,7 +249,7 @@ def to_data_dict(header, Z, e_Z):
 #   Spatial Statistics  #
 #########################
 
-def fast_semivarogram(Z_grid, header=None, meta=None, bin_size=2, f_to_keep=1.0):
+def fast_semivariogram(Z_grid, header=None, meta=None, bin_size=2, f_to_keep=1.0):
     '''
     A fast algorithm for computing the semivariogram of galaxy data.
 
