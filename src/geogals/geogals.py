@@ -2,7 +2,7 @@
 A collection of functions built for the geostatistical analysis of galaxy data.
 
 Created by: Benjamin Metha, Tree Smith, Jaime Blackwell
-Last Updated: May 09, 2025
+Last Updated: May 12, 2025
 '''
 
 from . import __version__
@@ -483,7 +483,7 @@ def fit_exp_cov_model(data_dict, meta, n_samples, n_walkers, backend_f, init_the
     backend.reset(n_walkers, 4)
     sampler = emcee.EnsembleSampler(N_WALKERS, N_DIM, exp_4D_log_prob_global, backend=backend)
     sampler.run_mcmc(pos, N_SAMPLES, progress=True, store=True)
-    return np.mean(sampler.acceptance_fraction))
+    return np.mean(sampler.acceptance_fraction)
 
 def globalize_data(loc_Z, loc_e_Z, loc_r, loc_dist_matrix, loc_init_theta, loc_init_unc_theta):
     '''
