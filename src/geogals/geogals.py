@@ -598,18 +598,21 @@ def log_gamma_prior_tenth_to_ten(x):
 #   Subsampling and cross-validation   #
 ########################################
 
-def get_subsample(n_dp, n_in_subsample):
+def get_subsample(data_dict, n_in_subsample):
     '''
-    Creates an n_dp long array,
-    n_in_subsample of which are True,
-    the rest of which are False.
+    Selects n_in_subsample elements from a supplied data_dict
     '''
+    n_dp = len(data_dict['Z'])
     if n_dp < n_in_subsample:
         raise ValueError
     A = np.zeros(n_dp)
     A[:n_in_subsample] = 1
     np.random.shuffle(A)
-    return A == 1
+    sub_dict = dict()
+    for k in data_dict.keys():
+        sub_dict[k] = data_dict[k][A == 1]
+    return sub_dict
+
 
 def assign_IDs(n_dp, n_folds):
     '''
