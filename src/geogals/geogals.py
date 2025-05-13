@@ -2,7 +2,7 @@
 A collection of functions built for the geostatistical analysis of galaxy data.
 
 Created by: Benjamin Metha, Tree Smith, Jaime Blackwell
-Last Updated: May 12, 2025
+Last Updated: May 13, 2025
 '''
 
 from . import __version__
@@ -656,7 +656,6 @@ def assign_IDs(n_dp, n_folds):
 #########################
 
 def krig_exp_model(RA, DEC, Z_df, meta, theta, mode='grid'):
-    ##### NOTE! Only tested for grid so far.
     '''
     Performs universal kriging on a model grid of RA and DEC
     Uses my distance function, a choice of covariance function, the best fitting
@@ -717,13 +716,13 @@ def krig_exp_model(RA, DEC, Z_df, meta, theta, mode='grid'):
         RA_long  = RA
         DEC_long = DEC
     elif mode=='auto':
-        RA_long  = Z_df['RAdeg']
-        DEC_long = Z_df['DEdeg']
+        RA_long  = Z_df['RA']
+        DEC_long = Z_df['DEC']
     else:
         print("Error: Bad argument given to `krig_model`.\nMode must be either 'grid', 'list', or 'auto'.")
         return np.nan, np.nan
 
-    data_dists = deprojected_distances(Z_df['RA'], Z_df['DEC'], meta)
+    data_dists = deprojected_distances(Z_df['RA'], Z_df['DEC'], meta=meta)
     r = RA_DEC_to_radius(Z_df['RA'], Z_df['DEC'], meta)
     Z_resids = Z_df['Z'] - Z_c - gradZ*r
     data_grid_dists = deprojected_distances(Z_df['RA'], Z_df['DEC'], RA_long, DEC_long, meta=meta)
@@ -738,7 +737,7 @@ def krig_exp_model(RA, DEC, Z_df, meta, theta, mode='grid'):
         error_cov = build_correlated_error_covariance_matrix(dist_matrix, e_Z=Z_df['e_Z'], meta=meta)
     else:
         # assume all observational error is uncorrelated
-        error_cov = np.diag(data_dict['e_Z']**2)
+        error_cov = np.diag(Z_df['e_Z']**2)
 
     spatial_cov_data = A*np.exp(-1.0*data_dists/phi)
     spatial_cov_data_grid = A*np.exp(-1.0*data_grid_dists/phi)
