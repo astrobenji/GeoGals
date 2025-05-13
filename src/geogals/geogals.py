@@ -8,10 +8,10 @@ Last Updated: May 12, 2025
 from . import __version__
 
 import numpy as np
-from   sklearn.metrics.pairwise import euclidean_distances
-from   astropy.wcs import WCS
 import scipy
 import emcee
+from   sklearn.metrics.pairwise import euclidean_distances
+from   astropy.wcs import WCS
 from   statsmodels.regression.linear_model import GLS
 
 ASEC_PER_RAD = 206265.0
@@ -376,7 +376,7 @@ def build_correlated_error_covariance_matrix(dist_matrix, e_Z, meta):
 #     Model Fitting     #
 #########################
 
-def fit_radial_linear_trend(Z_grid, e_Z_grid, header, meta, return_covariances=False):
+def fit_radial_linear_trend(data_dict, meta, return_covariances=False):
     '''
     Fits a radial trend to the galaxy data.
     Designed for computing metallicity gradients -- other mean models may be
@@ -385,14 +385,8 @@ def fit_radial_linear_trend(Z_grid, e_Z_grid, header, meta, return_covariances=F
 
     Parameters
     ----------
-    Z_grid: 2d np.array
-        Random field for which we are computing the mean radial trend
-
-    e_Z_grid: 2d np.array
-        Measured error in value of random field at each separation. Can be None.
-
-    header: hdu header file
-        Must contain wcs
+    data_dict: dict
+        Contains RA, DEC, Z, e_Z for each measured value of our random field.
 
     meta: dict
         Metadata used to calculate the distances. Must contain:
@@ -414,14 +408,28 @@ def fit_radial_linear_trend(Z_grid, e_Z_grid, header, meta, return_covariances=F
     optional -- covariance (array)
         Covariance matrix for returned parameters
     '''
-    RA_grid, DEC_grid = make_RA_DEC_grid(header)
-    r = RA_DEC_to_radius(RA_grid, DEC_grid, meta)
+    r = RA_DEC_to_radius(data_dict['RA'], data_dict['DEC'], meta)
     covariates = np.array([np.ones(len(r)), r]).T
-    Z_grad_model = GLS(Z, covariates, sigma=e_Z).fit()
+    Z_grad_model = GLS(data_dict['Z'], covariates, sigma=data_dict['e_Z']).fit()
     if return_covariances:
         return Z_grad_model.params, Z_grad_model.normalized_cov_params
     else:
         return Z_grad_model.params
+
+def generate_residual_Z_grid(Z_grid, e_Z_grid, header, meta):
+    '''
+    Find and subtract a radial trend in Z_grid,
+    '''
+    RA_grid, DEC_grid = make_RA_DEC_grid(header)
+    r_grid = RA_DEC_to_radius(RA_grid, DEC_grid, meta)
+    r_list = r_grid.flatten()
+    covariates = np.array([np.ones(len(r_list)), r_list]).T
+    Z_grad_model = GLS(Z_grid.flatten(), covariates, sigma=e_Z_grid.flatten()).fit()
+    # Subtract radially varying mean
+    Z_c, gradZ = Z_grad_model.params
+    resid_Z_grid = Z_grid - Z_c - gradZ * r_grid
+    return resid_Z_grid
+
 
 # Fit a model for the small-scale structure of a galaxy
 def fit_exp_cov_model(data_dict, meta, n_samples, n_walkers, backend_f, init_theta, init_unc_theta):
@@ -463,8 +471,9 @@ def fit_exp_cov_model(data_dict, meta, n_samples, n_walkers, backend_f, init_the
     f_acc: float
         mean acceptance fraction over all chains.
     '''
+    n_dim = 4 # number of parameters in our model
     r = RA_DEC_to_radius(data_dict['RA'], data_dict['DEC'], meta)
-    dist_matrix = deprojected_distances(data_dict['RA'], data_dict['DEC'], meta)
+    dist_matrix = deprojected_distances(data_dict['RA'], data_dict['DEC'], meta=meta)
     if 'PSF' in meta:
         # Compute the observational error covariance matrix, accounting for
         # correlation between pixels due to PSF smearing.
@@ -476,13 +485,13 @@ def fit_exp_cov_model(data_dict, meta, n_samples, n_walkers, backend_f, init_the
     # Convert variables that do not change between emcee loops to global variables
     globalize_data(Z, e_Z, r, dist_matrix, init_theta, init_unc_theta)
     # Create arrays of initial values
-    pos = np.outer(init_theta, np.ones(n_walkers)) + np.outer(init_unc_theta, np.random.randn(n_walkers))
+    pos = np.outer(init_theta, np.ones(n_walkers)) + np.diag(init_unc_theta) @ np.random.randn(n_dim, n_walkers)
     pos = pos.T
     backend = emcee.backends.HDFBackend(backend_f)
     # comment out the line below if you want to append results to an existing run.
-    backend.reset(n_walkers, 4)
-    sampler = emcee.EnsembleSampler(N_WALKERS, N_DIM, exp_4D_log_prob_global, backend=backend)
-    sampler.run_mcmc(pos, N_SAMPLES, progress=True, store=True)
+    backend.reset(n_walkers, n_dim)
+    sampler = emcee.EnsembleSampler(n_walkers, n_dim, log_likelihood_exp_model, backend=backend)
+    sampler.run_mcmc(pos, n_samples, progress=True, store=True)
     return np.mean(sampler.acceptance_fraction)
 
 def globalize_data(loc_Z, loc_e_Z, loc_r, loc_dist_matrix, loc_init_theta, loc_init_unc_theta):
@@ -568,19 +577,19 @@ def log_likelihood_exp_model(theta):
 
 def log_prior(theta, init_theta, init_unc_theta):
     '''
-    A prior for the values of the model.
+    A prior for the parameters of the model -- feel free to tweak or add your own!
     '''
     # Unpack theta
-    log_A, phi, Z_char, gradZ = theta
+    log_A, phi, Z_c, gradZ = theta
     init_log_A, init_phi, init_Z_c, init_gradZ = init_theta
     _, _, unc_Z_c, unc_gradZ = init_unc_theta
     # Normal priors on Z_c, grad_Z
-    log_Z_c_prior   = log_normal_prior(Z_c,   mu= init_Z_c,  sigma=unc_Z_c)
+    log_Z_c_prior   = log_normal_prior(Z_c,   mu=init_Z_c,   sigma=unc_Z_c)
     log_gradZ_prior = log_normal_prior(gradZ, mu=init_gradZ, sigma=unc_gradZ)
     # Gamma priors on phi, A
     log_A_prior   = log_gamma_prior_tenth_to_ten(10**(log_A - init_log_A))
-    log_phi_prior = log_gamma_prior_20_to_500(phi/init_phi)
-    return log_Z_char_prior + log_gradZ_prior + log_A_prior + log_phi_prior
+    log_phi_prior = log_gamma_prior_tenth_to_ten(phi/init_phi)
+    return log_Z_c_prior + log_gradZ_prior + log_A_prior + log_phi_prior
 
 def log_normal_prior(x, mu, sigma):
     return -0.5*( ((x-mu)/sigma)**2 ) - np.log(sigma) - 0.5*np.log(2*np.pi)
@@ -591,7 +600,7 @@ def log_gamma_prior_tenth_to_ten(x):
         return  -np.inf
     alpha = 1.494
     labda = 0.5661
-    prob  = np.power(labda, alpha) * np.power(x, alpha - 1) * np.exp(-1.0*labda*x) / gamma(alpha)
+    prob  = np.power(labda, alpha) * np.power(x, alpha - 1) * np.exp(-1.0*labda*x) / scipy.special.gamma(alpha)
     return np.log(prob)
 
 ########################################
@@ -612,7 +621,6 @@ def get_subsample(data_dict, n_in_subsample):
     for k in data_dict.keys():
         sub_dict[k] = data_dict[k][A == 1]
     return sub_dict
-
 
 def assign_IDs(n_dp, n_folds):
     '''
@@ -647,7 +655,7 @@ def assign_IDs(n_dp, n_folds):
 #        Kriging        #
 #########################
 
-def krig_exp_model(RA, DEC, Hii_df, meta, theta, mode='grid'):
+def krig_exp_model(RA, DEC, Z_df, meta, theta, mode='grid'):
     ##### NOTE! Only tested for grid so far.
     '''
     Performs universal kriging on a model grid of RA and DEC
@@ -703,14 +711,14 @@ def krig_exp_model(RA, DEC, Hii_df, meta, theta, mode='grid'):
             shape = RA.shape
         else:
             raise ValueError("RA_grid and DEC_grid must have the same shape! Input RA shape: {0} Input DEC shape: {1}".format((RA_grid.shape, DEC_grid.shape)))
-        RA_long = RA.flatten()
+        RA_long  = RA.flatten()
         DEC_long = DEC.flatten()
     elif mode=='list':
-        RA_long = RA
+        RA_long  = RA
         DEC_long = DEC
     elif mode=='auto':
-        RA_long = df['RAdeg']
-        DEC_long = df['DEdeg']
+        RA_long  = Z_df['RAdeg']
+        DEC_long = Z_df['DEdeg']
     else:
         print("Error: Bad argument given to `krig_model`.\nMode must be either 'grid', 'list', or 'auto'.")
         return np.nan, np.nan
@@ -727,7 +735,7 @@ def krig_exp_model(RA, DEC, Hii_df, meta, theta, mode='grid'):
     if 'PSF' in meta:
         # Compute the observational error covariance matrix, accounting for
         # correlation between pixels due to PSF smearing.
-        error_cov = build_correlated_error_covariance_matrix(dist_matrix, e_Z=data_dict['e_Z'], meta=meta)
+        error_cov = build_correlated_error_covariance_matrix(dist_matrix, e_Z=Z_df['e_Z'], meta=meta)
     else:
         # assume all observational error is uncorrelated
         error_cov = np.diag(data_dict['e_Z']**2)

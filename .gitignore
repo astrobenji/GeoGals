@@ -119,3 +119,4 @@ docs/tutorials/.ipynb_checkpoints
 __pycache__/
 
 gg_venv
+*.hdf5
