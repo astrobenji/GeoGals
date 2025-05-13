@@ -2,6 +2,6 @@
 
 __author__ = """Benjamin Metha"""
 __email__ = 'methab@student.unimelb.edu.au'
-__version__ = '0.1.4'
+__version__ = '0.1.5'
 
 from .geogals import *
