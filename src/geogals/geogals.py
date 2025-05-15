@@ -2,6 +2,7 @@
 A collection of functions built for the geostatistical analysis of galaxy data.
 
 Created by: Benjamin Metha, Tree Smith, Jaime Blackwell
+
 Last Updated: May 15, 2025
 '''
 
@@ -112,6 +113,25 @@ def RA_DEC_to_XY(RA, DEC, meta):
     return XY_kpc
 
 def RA_DEC_to_radius(RA, DEC, meta):
+    '''
+    Converts a list of RA//DEC values to distances from a galaxy's centre,
+    using a supplied metadata dictionary.
+
+    Parameters
+    ----------
+
+    RA: float or np.array
+        Right ascension of points
+
+    DEC: float or np.array
+        Declination of points
+
+    Returns
+    -------
+
+    r: np array
+        Distance from each point to the galaxy's centre
+    '''
     return deprojected_distances(RA, DEC, meta['RA'], meta['DEC'], meta).T[0]
 
 def deprojected_distances(RA1, DEC1, RA2=None, DEC2=None, meta=dict()):
@@ -264,14 +284,14 @@ def fast_semivariogram(Z_grid, header=None, meta=None, bin_size=2, f_to_keep=1.0
         no deprojection.
 
     meta: dict
-        Metadata used to calculate the distances. Must contain:
+        Metadata used to calculate the distances. Must be supplied if header is supplied. Must contain:
+
         PA: float
             Principle Angle of the galaxy, degrees.
         i: float
             inclination of the galaxy along this principle axis, degrees.
         D: float
             Distance from this galaxy to Earth, Mpc.
-        Must be supplied if header is supplied.
 
     bin_size:
         Size of bins for semivariogram.
@@ -289,7 +309,6 @@ def fast_semivariogram(Z_grid, header=None, meta=None, bin_size=2, f_to_keep=1.0
     bc: numpy array
         centres of each semivariogram bin
 
-    plt.plot(bc, svg) will generate a plot of the semivariogram.
     '''
     nx, ny = Z_grid.shape # shape
     pad_shape =(2*nx -1, 2*ny-1) #required padding
@@ -361,6 +380,7 @@ def build_correlated_error_covariance_matrix(dist_matrix, e_Z, meta):
     -------
     cov_matrix: (N,N) np.array
         Covariance matrix for correlated observation errors.
+
     '''
     # Convert seeing of 0.6'' to kpc, using small angle approximation
     physical_seeing = meta['PSF']*meta['Dist']*1000/ASEC_PER_RAD
@@ -390,6 +410,13 @@ def fit_radial_linear_trend(data_dict, meta, return_covariances=False):
 
     meta: dict
         Metadata used to calculate the distances. Must contain:
+
+        RA: float
+            Right ascension of the centre of the galaxy.
+
+        DEC: float
+            Declination of the centre of the galaxy.
+
         PA: float
             Principle Angle of the galaxy, degrees.
         i: float
@@ -676,6 +703,7 @@ def krig_exp_model(RA, DEC, Z_df, meta, theta, mode='grid'):
 
     meta: dict
         Metadata used to calculate the distances. Must contain:
+
         PA: float
             Principle Angle of the galaxy, degrees.
         i: float
@@ -701,6 +729,7 @@ def krig_exp_model(RA, DEC, Z_df, meta, theta, mode='grid'):
 
     var_matrix: (M,N) np array
         variances for these predictions
+
     '''
     log_A, phi, Z_c, gradZ = theta
     A = 10**log_A
