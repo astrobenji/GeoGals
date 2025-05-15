@@ -5,7 +5,7 @@ Created by: Benjamin Metha, Tree Smith, Jaime Blackwell
 Last Updated: May 13, 2025
 '''
 
-from . import __version__
+# from . import __version__
 
 import numpy as np
 import scipy
