@@ -8,9 +8,7 @@ Welcome to GeoGals's documentation!
    readme
    installation
    usage
-   modules
    contributing
-   history
 
 Indices and tables
 ==================
