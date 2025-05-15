@@ -4,3 +4,9 @@ numpy>=2.2.0
 scipy>=1.15.0
 statsmodels>=0.14.4
 scikit-learn>=1.6.0
+
+## For documentation 
+sphinx
+sphinx-rtd-theme
+sphinx-autodoc-typehints
+sphinxcontrib-napoleon
