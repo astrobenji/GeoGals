@@ -31,7 +31,12 @@ import geogals
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode']
+extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.viewcode',
+    'sphinx_autodoc_typehints',
+]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -96,6 +101,10 @@ html_theme = 'sphinx_rtd_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
+# -- For Numpy-style parsing?
+napoleon_google_docstring = False
+napoleon_numpy_docstring = True
+
 
 # -- Options for HTMLHelp output ---------------------------------------
 
@@ -154,7 +163,7 @@ texinfo_documents = [
      'GeoGals Documentation',
      author,
      'geogals',
-     'One line description of project.',
+     'A publicly available Python package for using geostatistical methods on real and simulated galaxy data.',
      'Miscellaneous'),
 ]
 

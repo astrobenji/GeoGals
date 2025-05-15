@@ -8,6 +8,7 @@ Welcome to GeoGals's documentation!
    readme
    installation
    usage
+   geogals
    contributing
 
 Indices and tables
