@@ -4,7 +4,7 @@ A publicly available repository for using geostatistical methods on real and sim
 This package contains functions that enable a user to:
 
  * Create a semivariogram for real or simulated spatial galaxy data.
- * Fit geostatistical models to galaxy data that accounts for a spatially-varying mean, as well as small-scale fluctuations.
+ * Fit geostatistical models to galaxy data that account for a spatially-varying mean, as well as small-scale fluctuations.
  * Use kriging to predict values of random fields at observed/unobserved locations.
 
 The best way to get started with this package is to head over to the [tutorials](https://github.com/astrobenji/GeoGals/tree/main/docs/tutorials). For support, please do not hesitate to contact Benji Metha (methab ((at)) student.unimelb.edu.au).
