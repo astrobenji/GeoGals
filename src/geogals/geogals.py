@@ -49,8 +49,8 @@ def make_physical_lag_grid(header, meta):
     '''
     # First, convert pixel indices to RA and DEC
     world = WCS(header)
-    x = np.arange(-header['NAXIS1'], header['NAXIS1']+1)
-    y = np.arange(-header['NAXIS2'], header['NAXIS2']+1)
+    x = np.arange(1-header['NAXIS1'], header['NAXIS1'])
+    y = np.arange(1-header['NAXIS2'], header['NAXIS2'])
     X, Y = np.meshgrid(x, y)
     RA_grid, DEC_grid = world.wcs_pix2world(X, Y, 0)
     # Next, convert RA and DEC to physical pc using the meta dict
@@ -269,7 +269,7 @@ def to_data_dict(header, Z, e_Z):
 #   Spatial Statistics  #
 #########################
 
-def fast_semivariogram(Z_grid, header=None, meta=None, bin_size=2, f_to_keep=1.0):
+def fast_semivariogram(Z_grid, header=None, meta=None, bin_size=2, d_lim=None):
     '''
     A fast algorithm for computing the semivariogram of galaxy data.
 
@@ -297,9 +297,9 @@ def fast_semivariogram(Z_grid, header=None, meta=None, bin_size=2, f_to_keep=1.0
         Size of bins for semivariogram.
         Defaults to 2 (pixels) -- should be changed if using physical separations
 
-    f_to_keep: float
-        Fraction of data to keep (defaults to all of it -- but we warn the reader
-        that the semivariogram becomes unreliable at large separations)
+    d_lim: float, or None
+        Maximum distance up to which compute the semivariogram.
+        If not supplied, goes up to the maximum possible distance in the data.
 
     Returns
     -------
@@ -309,22 +309,18 @@ def fast_semivariogram(Z_grid, header=None, meta=None, bin_size=2, f_to_keep=1.0
     bc: numpy array
         centres of each semivariogram bin
 
+    N: Number of pairs in each bin?? ( Tree to confirm)
+
     '''
+
+    # set up steps (mask and padding)
     nx, ny = Z_grid.shape # shape
     pad_shape =(2*nx -1, 2*ny-1) #required padding
-
-    M = (~np.isnan(Z_grid)).astype(float) # 1 if non-nan
-    F_Z2 = scipy.fft.fft2(Z_grid**2, pad_shape) # FFT of Z^2
-    F_M = scipy.fft.fft2(M, pad_shape) # FFT of M
-    Z_rev = (Z_grid*M)[::-1,::-1] # reversed Z
-    F_Z_rev = scipy.fft.fft2(Z_rev, pad_shape) # FFT of Z (tilde)
-    F_Z = scipy.fft.fft2(Z_grid*M, pad_shape) # FFT of Z
-    F_Z2_rev = scipy.fft.fft2(Z_rev**2, pad_shape) # FFT of Z^2 (tilde)
-    N_fft = scipy.fft.ifft2(F_M * scipy.fft.fft2(M[::-1, ::-1], pad_shape)).real # N computed using FFT
-
-    gamma = np.fft.ifft2(F_Z2 * (F_M)).real + scipy.fft.ifft2(F_M * F_Z2_rev).real - 2*scipy.fft.fftshift(scipy.fft.ifft2(F_Z * np.conj(F_Z)).real) # unnormalised svg
-    gamma = gamma/(2* N_fft) # normalised
-
+    M_mask = (np.isnan(Z_grid)) # mask
+    Z_copy = np.zeros_like(Z_grid)
+    # Z_grid[M_mask] = 0 # set nans to 0
+    M = (~M_mask).astype(float) # 1 if non-nan
+    Z_copy[~M_mask] = Z_grid[~M_mask]
     # lags
     if header is not None:
         if meta is None:
@@ -338,18 +334,26 @@ def fast_semivariogram(Z_grid, header=None, meta=None, bin_size=2, f_to_keep=1.0
         lag_y = np.arange(pad_shape[0]) - (Z_grid.shape[0] - 1)  # vertical shift (rows)
         lag_X, lag_Y = np.meshgrid(lag_x, lag_y)
     # want the norm of the separation:
-    r = (lag_X**2 + lag_Y**2)**0.5
+    r = (lag_X**2 + lag_Y**2)**0.5 #total lag distance
 
-    d_lim = np.max(r) * f_to_keep
+    if d_lim is None:
+        d_lim = np.max(r)
 
-    # bin by r:
-    svg = scipy.stats.binned_statistic(r.flatten(), gamma.flatten(), statistic =np.nanmean, bins=int(d_lim/bin_size), range=(0, d_lim))
+    gamma = scipy.signal.fftconvolve(M, (M*Z_copy**2)[::-1, ::-1], mode='full') + scipy.signal.fftconvolve((M*Z_copy**2), M[::-1, ::-1], mode='full') - 2*scipy.signal.fftconvolve((M*Z_copy), (M*Z_copy)[::-1, ::-1])
 
-    # find bin centres:
-    bc = svg.bin_edges
-    bc = (bc[1:] + bc[:-1])/2
+    N = scipy.signal.fftconvolve(M, M[::-1, ::-1], mode='full')
 
-    return svg.statistic, bc
+    svg_values = scipy.stats.binned_statistic(r.flatten(), gamma.flatten(), statistic=np.nansum, bins=int(d_lim/bin_size), range=(0,d_lim))
+
+    bin_edges = svg_values.bin_edges
+    bin_centres = (bin_edges[1:] + bin_edges[:-1])/2
+
+    svg_values = svg_values.statistic
+    N_values =  scipy.stats.binned_statistic(r.flatten(), N.flatten(), statistic=np.nansum, bins=int(d_lim/bin_size), range=(0,d_lim)).statistic
+
+    svg_values = 0.5*(svg_values/N_values)
+
+    return svg_values, bin_centres, N_values
 
 def build_correlated_error_covariance_matrix(dist_matrix, e_Z, meta):
     '''
@@ -448,10 +452,15 @@ def generate_residual_Z_grid(Z_grid, e_Z_grid, header, meta):
     Find and subtract a radial trend in Z_grid,
     '''
     RA_grid, DEC_grid = make_RA_DEC_grid(header)
-    r_grid = RA_DEC_to_radius(RA_grid, DEC_grid, meta)
-    r_list = r_grid.flatten()
-    covariates = np.array([np.ones(len(r_list)), r_list]).T
-    Z_grad_model = GLS(Z_grid.flatten(), covariates, sigma=e_Z_grid.flatten()).fit()
+    r_list = RA_DEC_to_radius(RA_grid.flatten(), DEC_grid.flatten(), meta)
+    r_grid = r_list.reshape(RA_grid.shape)
+    # Strip out unwanted nans
+    wanted_spaxels = ~np.isnan(Z_grid.flatten())
+    wanted_r       = r_list[wanted_spaxels]
+    wanted_Z       = Z_grid.flatten()[wanted_spaxels]
+    wanted_e_Z     = e_Z_grid.flatten()[wanted_spaxels]
+    covariates = np.array([np.ones(len(wanted_r)), wanted_r]).T
+    Z_grad_model = GLS(wanted_Z, covariates, sigma=wanted_e_Z).fit()
     # Subtract radially varying mean
     Z_c, gradZ = Z_grad_model.params
     resid_Z_grid = Z_grid - Z_c - gradZ * r_grid
