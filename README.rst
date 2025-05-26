@@ -21,6 +21,7 @@ A publicly available repository for using geostatistical methods on real and sim
 
 * Free software: MIT license
 * Tutorials: https://github.com/astrobenji/GeoGals/tree/main/docs/tutorials
+* Further documentation: https://geogals.readthedocs.io/
 
 
 Features

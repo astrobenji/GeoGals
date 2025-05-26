@@ -3,10 +3,10 @@ A collection of functions built for the geostatistical analysis of galaxy data.
 
 Created by: Benjamin Metha, Tree Smith, Jaime Blackwell
 
-Last Updated: May 15, 2025
+Last Updated: May 26, 2025
 '''
 
-__version__ = '0.1.6'
+__version__ = '0.1.7'
 
 import numpy as np
 import scipy
