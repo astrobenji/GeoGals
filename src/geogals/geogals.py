@@ -47,15 +47,25 @@ def make_physical_lag_grid(header, meta):
         the galaxy's absolute units (D should be in units of megaparsecs; PA and
         i should be in units of degrees).
     '''
-    # First, convert pixel indices to RA and DEC
+    # Generate lag matrices in pixel space
+    nx = header['NAXIS1']
+    ny = header['NAXIS2']
+
+    lag_x_pix = np.arange(2*nx - 1) - (nx - 1)
+    lag_y_pix = np.arange(2*ny - 1) - (ny - 1)
+
+    lag_X_pix, lag_Y_pix = np.meshgrid(lag_x_pix, lag_y_pix)
+
+    # Convert pixel lags into RA, DEC lags
     world = WCS(header)
-    x = np.arange(1-header['NAXIS1'], header['NAXIS1'])
-    y = np.arange(1-header['NAXIS2'], header['NAXIS2'])
-    X, Y = np.meshgrid(x, y)
-    RA_grid, DEC_grid = world.wcs_pix2world(X, Y, 0)
-    # Next, convert RA and DEC to physical pc using the meta dict
-    delta_RA_deg  = RA_grid  - meta['RA']
-    delta_DEC_deg = DEC_grid - meta['DEC']
+    RA_grid, DEC_grid = world.wcs_pix2world(lag_X_pix, lag_Y_pix, 0)
+
+    centre_RA  = RA_grid [ny - 1, nx - 1]
+    centre_DEC = DEC_grid[ny - 1, nx - 1]
+
+    delta_RA_deg  = RA_grid  - centre_RA
+    delta_DEC_deg = DEC_grid - centre_DEC
+    # Next, convert RA and DEC to physical pc using the meta dict:
     PA = np.radians(meta['PA'])
     i  = np.radians(meta['i'])
     # 1: Rotate RA, DEC by PA to get y (major axis direction) and x (minor axis direction)

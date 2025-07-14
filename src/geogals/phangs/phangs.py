@@ -11,6 +11,9 @@ Last updated: May 15, 2025
 #    Preprocessing   #
 ######################
 
+import numpy as np
+from   extinction import ccm89, apply
+
 # Caution: these functions are PHANGS specific and may not work in general
 
 def SN_cut(line_df, threshold=3):
