@@ -363,6 +363,9 @@ def fast_semivariogram(Z_grid, header=None, meta=None, bin_size=2, d_lim=None):
 
     svg_values = 0.5*(svg_values/N_values)
 
+    # Set semivariogram values where there are no pairs of points to nan
+    svg_values = np.where(N_values > 1, svg_values, np.nan)
+
     return svg_values, bin_centres, N_values
 
 def build_correlated_error_covariance_matrix(dist_matrix, e_Z, meta):
