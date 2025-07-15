@@ -120,3 +120,4 @@ __pycache__/
 
 gg_venv
 *.hdf5
+NGC1385_MAPS_native.fits
