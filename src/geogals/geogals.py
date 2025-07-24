@@ -17,6 +17,8 @@ from   statsmodels.regression.linear_model import GLS
 
 ASEC_PER_RAD = 206265.0
 
+EPSILON = 1e-6
+
 #########################
 #    Unit Conversions   #
 #########################
@@ -353,13 +355,13 @@ def fast_semivariogram(Z_grid, header=None, meta=None, bin_size=2, d_lim=None):
 
     N = scipy.signal.fftconvolve(M, M[::-1, ::-1], mode='full')
 
-    svg_values = scipy.stats.binned_statistic(r.flatten(), gamma.flatten(), statistic=np.nansum, bins=int(d_lim/bin_size), range=(0,d_lim))
+    svg_values = scipy.stats.binned_statistic(r.flatten(), gamma.flatten(), statistic=np.nansum, bins=int(d_lim/bin_size), range=(EPSILON, d_lim))
 
     bin_edges = svg_values.bin_edges
     bin_centres = (bin_edges[1:] + bin_edges[:-1])/2
 
     svg_values = svg_values.statistic
-    N_values =  scipy.stats.binned_statistic(r.flatten(), N.flatten(), statistic=np.nansum, bins=int(d_lim/bin_size), range=(0,d_lim)).statistic
+    N_values =  scipy.stats.binned_statistic(r.flatten(), N.flatten(), statistic=np.nansum, bins=int(d_lim/bin_size), range=(EPSILON, d_lim)).statistic
 
     svg_values = 0.5*(svg_values/N_values)
 
