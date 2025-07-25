@@ -119,8 +119,8 @@ def RA_DEC_to_XY(RA, DEC, meta):
     # 3: Convert units to kpc
     x_rad = np.radians(x_deg)
     y_rad = np.radians(y_deg)
-    x_kpc = x_rad * meta['Dist'] * 1000
-    y_kpc = y_rad * meta['Dist'] * 1000
+    x_kpc = x_rad * meta['D'] * 1000
+    y_kpc = y_rad * meta['D'] * 1000
     XY_kpc = np.stack((x_kpc, y_kpc)).T
     return XY_kpc
 
@@ -363,10 +363,13 @@ def fast_semivariogram(Z_grid, header=None, meta=None, bin_size=2, d_lim=None):
     svg_values = svg_values.statistic
     N_values =  scipy.stats.binned_statistic(r.flatten(), N.flatten(), statistic=np.nansum, bins=int(d_lim/bin_size), range=(EPSILON, d_lim)).statistic
 
+    # set N=0 values to nan, to avoid divide by zero warnings.
+    N_values = np.where(N_values > 0, N_values, np.nan)
+
     svg_values = 0.5*(svg_values/N_values)
 
-    # Set semivariogram values where there are no pairs of points to nan
-    svg_values = np.where(N_values > 1, svg_values, np.nan)
+    # Return these values to zero now.
+    N_values = np.where(~np.isnan(N_values), N_values, 0)
 
     return svg_values, bin_centres, N_values
 
@@ -402,7 +405,7 @@ def build_correlated_error_covariance_matrix(dist_matrix, e_Z, meta):
 
     '''
     # Convert seeing of 0.6'' to kpc, using small angle approximation
-    physical_seeing = meta['PSF']*meta['Dist']*1000/ASEC_PER_RAD
+    physical_seeing = meta['PSF']*meta['D']*1000/ASEC_PER_RAD
     # Convert seeing (FWHM) into a s.d.
     seeing_sd = physical_seeing / (2*np.sqrt(2*np.log(2))) # from
     # Assume the telescope has a Gaussian PSF:
