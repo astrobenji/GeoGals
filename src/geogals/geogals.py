@@ -6,7 +6,7 @@ Created by: Benjamin Metha, Tree Smith, Jaime Blackwell
 Last Updated: May 26, 2025
 '''
 
-__version__ = '0.1.7'
+__version__ = '0.1.8'
 
 import numpy as np
 import scipy
@@ -571,7 +571,7 @@ def globalize_data(loc_Z, loc_e_Z, loc_r, loc_dist_matrix, loc_init_theta, loc_i
     D = np.array([np.ones(n), r]).T
     return 0
 
-def log_likelihood_exp_model(theta):
+def log_likelihood_exp_model(theta, priors = True):
     '''
     Function that is optimised by emcee to find the best parameters for our
     model of the random field, with radially linear mean values for Z, and
@@ -598,6 +598,10 @@ def log_likelihood_exp_model(theta):
             log_A, phi: model parameters for spatial_cov
             Z_c, gradZ: model parameters for the large scale gradient
 
+    priors: bool
+        If True, folds in the provided priors to the likelihood guess.
+        If False, just computes the likelihood.
+
     Returns
     -------
     log_likelihood: float
@@ -606,9 +610,13 @@ def log_likelihood_exp_model(theta):
     log_A, phi, Z_c, gradZ = theta
     A = 10**log_A
     # infold priors
-    ln_prior = log_prior(theta, init_theta, init_unc_theta)
-    if np.isinf(ln_prior):
-        return ln_prior
+    if priors:
+        ln_prior = log_prior(theta, init_theta, init_unc_theta)
+        if np.isinf(ln_prior):
+            return ln_prior
+    else:
+        ln_prior = 0
+    # Make variance matrix
     r_on_phi  = dist_matrix / phi
     spatial_cov = A* np.exp( -1.0 * r_on_phi)
     V = e_Z + spatial_cov
