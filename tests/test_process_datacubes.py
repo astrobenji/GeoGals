@@ -22,9 +22,9 @@ def test_create_white_images():
 	try:
 		Meta, Cube = open_cube(test_gal, test_center_pix)
 		create_white_images(Cube)
-		return False
-	except:
 		return True
+	except:
+		return False
 		
 def test_get_spectrum():
 	test_gal        = 'UGCA515'
@@ -32,6 +32,6 @@ def test_get_spectrum():
 	try:
 		Meta, Cube = open_cube(test_gal, test_center_pix)
 		get_spectrum(Cube)
-		return False
-	except:
 		return True
+	except:
+		return False
