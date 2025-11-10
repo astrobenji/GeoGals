@@ -368,8 +368,10 @@ def fast_semivariogram(Z_grid, header=None, meta=None, bin_size=2, d_lim=None):
 
     svg_values = 0.5*(svg_values/N_values)
 
-    # Return these values to zero now.
+    # Reset these values to zero now.
     N_values = np.where(~np.isnan(N_values), N_values, 0)
+    # Set semivariogram values where there are no pairs of points to nan
+    svg_values = np.where(N_values > 1, svg_values, np.nan)
 
     return svg_values, bin_centres, N_values
 
@@ -628,8 +630,6 @@ def log_likelihood_exp_model(theta, priors = True):
         return -np.inf
     log_det_L = np.sum(np.log(np.diag(L)))
     log_det_V = 2*log_det_L
-    white_D = np.linalg.solve(L, D)
-    white_Z = np.linalg.solve(L, Z)
     # subtract mean trend
     beta = np.array([Z_c, gradZ])
     resids =  Z - D @ beta
