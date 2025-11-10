@@ -19,8 +19,8 @@ from   scipy.linalg import cho_factor, cho_solve
 from   extinction import ccm89, apply
 import emcee
 
-raw_data_path   = '../Data/PHANGS_data/Raw/Native/'
-local_data_path =  '../Data/'
+raw_data_path   = '/data/projects/punim1156/PHANGS/Raw/'
+local_data_path =  '/home/methab/Geostatistics/ANAL/Data/'
 
 ASEC_PER_RAD = 206265.0
 
@@ -51,13 +51,6 @@ def open_line_df(gal_ID):
 # For cleaned data
 def open_Hii_df(gal_ID):
 	return pd.read_pickle(local_data_path +'Handmade/Hii_dataframes/Z_maps_{0}.pkl'.format(gal_ID))
-	
-# Spinoffs
-def open_inner_Hii_df(gal_ID):
-	return pd.read_pickle(local_data_path +'Handmade/Hii_dataframes/inner_disc/Z_maps_{0}.pkl'.format(gal_ID))
-
-def open_outer_Hii_df(gal_ID):
-	return pd.read_pickle(local_data_path +'Handmade/Hii_dataframes/outer_disc/Z_maps_{0}.pkl'.format(gal_ID))
 
 def open_metadata():
 	'''
@@ -75,7 +68,7 @@ def meta_getter(gal_ID):
 	return meta
 	
 def read_ICs(gal_ID, diag):
-	return np.load('../Data/gradZ_ICs/{0}_{1}.npy'.format(gal_ID, diag))
+	return np.load(local_data_path + 'gradZ_ICs/{0}_{1}.npy'.format(gal_ID, diag))
 
 #######################
 #    Data wrangling   #
