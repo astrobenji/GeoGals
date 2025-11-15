@@ -12,10 +12,10 @@ def test_open_cube():
 	test_gal        = 'UGC05101'
 	test_center_pix = [73, 66]
 	try:
-		open_cube(test_gal, test_center_pix):
+		open_cube(test_gal, test_center_pix)
 	except:
 		return False
-	
+
 def test_create_white_images():
 	test_gal        = 'UGC05101'
 	test_center_pix = [73, 66]
@@ -25,7 +25,7 @@ def test_create_white_images():
 		return True
 	except:
 		return False
-		
+
 def test_get_spectrum():
 	test_gal        = 'UGC05101'
 	test_center_pix = [73, 66]

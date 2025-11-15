@@ -20,7 +20,20 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent"
 ]
-dependencies = []
+dependencies = [
+    "astropy>=7.0.1",
+    "emcee>=3.0.0",
+    "extinction",
+    "gpytorch",
+    "matplotlib",
+    "numpy<2",
+    "photutils",
+    "scipy>=1.15.0",
+    "statsmodels>=0.14.4",
+    "scikit-learn>=1.6.0",
+    "scikit-image",
+    "torch"
+]
 
 [project.optional-dependencies]
 dev = [
@@ -28,6 +41,13 @@ dev = [
   "mypy",
   "pytest",
   "ruff"
+]
+
+doc = [
+    "sphinx",
+    "sphinx-rtd-theme",
+    "sphinx-autodoc-typehints",
+    "sphinxcontrib-napoleon"
 ]
 
 [project.urls]

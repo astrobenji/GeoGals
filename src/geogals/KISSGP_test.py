@@ -25,7 +25,7 @@ class RadialLinearMean(gpytorch.means.Mean):
         # to speed up computation
         self.a = -0.03 + 0.03*torch.nn.Parameter(torch.randn(1))  # Slope
         self.b = 8.7 + torch.nn.Parameter(torch.randn(1))  # Intercept
-	
+
     def forward(self, x):
         # Assuming x has shape [N, D], where D = 2 (at least x and y)
         x_coords = x[:, 0]  # First dimension: x
@@ -72,7 +72,7 @@ class GPRegressionModel(gpytorch.models.ExactGP):
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-        
+
 likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(noise = var_Z)
 #likelihood = gpytorch.likelihoods.GaussianLikelihood() # a more basic option
 model = GPRegressionModel(XY, Z, likelihood)
@@ -90,12 +90,12 @@ mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 training_iterations = 10
 
 def train():
-for ii in range(training_iterations):
-	optimizer.zero_grad()
-	output = model(XY)
-	loss = -mll(output, Z)
-	loss.backward()
-	optimizer.step()
+    for ii in range(training_iterations):
+        optimizer.zero_grad()
+        output = model(XY)
+        loss = -mll(output, Z)
+        loss.backward()
+        optimizer.step()
 
 
 # Access results

@@ -23,40 +23,40 @@ import matplotlib.pyplot as plt
 #                              #
 ################################
 
-class Cube:
+class Cube: ...
 
 # Open Cube
 def open_cube(gal_name, center_pix, path):
 	'''
 	Wrapper for hypercube
-	
+
 	Parameters
 	----------
-	
+
 	gal_name: str
-	
+
 	center_pix: list or tuple of 2 numbers
-	
+
 	path: str
 		Name of the location of the data
 	'''
 	cubes, headers, names = load_datacubes(path)
-	
+
 	# Get user-specified transformations
 	transformations = get_transformations(names)
-	
+
 	# Get wavelength information
 	wave_info = get_wavelength_info(headers)
 	for name, info in zip(names, wave_info):
 		print(f"{name}: {info['min']:.1f}-{info['max']:.1f} angstrom, step={info['step']:.2f} angstrom")
-	
+
 	# Create white light images for alignment
 	white_images = create_white_images(cubes)
-	
+
 	# Align images with transformations
 	aligned_images, shifts, max_shape = align_images(white_images, names, transformations)
 	return Cube, Meta
-	
+
 def open_coadd_cubes(gal_name, center_pix, path):
 	extensions = ['BH1L', 'RH1L', 'BLL', 'RH2L']
 	hypercube = {}
