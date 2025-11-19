@@ -3,147 +3,17 @@ import numpy as np
 import datetime
 from pathlib import Path
 from abc import ABC, abstractmethod
+from geogals_io import *
+from geogals_log import *
 
-# By Tree
-# For file handling, logging and storing metadata
-# see docstrings for use.
+'''
+By Tree
 
-
-class Logger:
-    """
-    Logger for timestamped, categorized log entries stored in a galaxy-specific
-    results directory.
-
-    Parameters
-    ----------
-    galaxy_name : str
-        Name of the galaxy used to locate the results directory.
-    results_base_directory : str, optional
-        Base path under which galaxy result directories are created. Default
-        is './results/'.
-
-    Attributes
-    ----------
-    galaxy_name : str
-        As provided.
-    results_directory : pathlib.Path
-        Path to the galaxy's results directory.
-    log_file : pathlib.Path
-        Path to the log file inside the results directory.
-    """
-
-    def __init__(self, galaxy_name, results_base_directory = './results/'):
-        self.galaxy_name = galaxy_name
-        self.results_directory = FileHandler(galaxy_name)._create_results_directory(results_base_directory)
-        self.log_file = self.results_directory / 'log.log'
-        if not self.log_file.is_file():
-            self.log('INIT','Log created.')
-
-
-    def log(self, log_code, msg):
-        """
-        Append a single log line to the log file.
-
-        Parameters
-        ----------
-        log_code : str
-            Short code categorising the log entry (for example 'INIT', 'RUN',
-            'SAVE', 'LOAD', 'PARAM').
-        msg : str
-            Human-readable message to record.
-        """
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        with open(self.log_file, "a") as f:
-            f.write(f"{timestamp} | {log_code} | {msg}\n")
-
-    def log_run(self, run_id):
-        """
-        Record that a new run has been created.
-
-        Parameters
-        ----------
-        run_id : str
-            Unique identifier of the run.
-        """
-        self.log('RUN', f'(run id: {run_id}) Run created.')
-
-    def log_init(self, obj_name, run_id=None):
-        """
-        Record that an object has been initialised.
-
-        Parameters
-        ----------
-        obj_name : str
-            Name of the object being initialised (e.g. 'meta').
-        run_id : str, optional
-            If provided, include the associated run identifier in the log
-            message.
-        """
-        msg = f'{obj_name.capitalize()} initialised.'
-        if run_id is not None:
-            msg = f'(run id: {run_id}) {msg}'
-        
-        self.log('INIT', msg)
+Module for storing meta.
 
 
 
-    def log_save(self, run_id, save_type, file_type):
-        """
-        Record that an object has been saved to disk.
-
-        Parameters
-        ----------
-        run_id : str
-            Identifier of the run associated with the saved object.
-        save_type : str
-            Semantic type of object saved (for example, 'meta', 'data').
-        file_type : str
-            File format used (for example, 'pickle').
-        """
-
-        self.log('SAVE', f'(run id: {run_id}) {save_type.capitalize()} saved to {file_type}.')
-
-    def log_load(self, run_id, load_type, file_type, load_into=None):
-        """
-        Record that an object has been loaded from disk or loaded into another
-        object.
-
-        Parameters
-        ----------
-        run_id : str
-            Identifier of the run associated with the loaded object.
-        load_type : str
-            Semantic type of object loaded (for example, 'meta', 'data').
-        file_type : str
-            File format used (for example, 'pickle'). May be ``None`` if the
-            load was not from a file.
-        load_into : str, optional
-            If provided, records the target object into which the data was
-            loaded.
-        """
-        # when it's from save make this READ
-        if load_into is not None:
-            self.log('LOAD', f'(run id: {run_id}) {load_type.capitalize()} loaded into {load_into.capitalize()}')
-        else:
-            self.log('LOAD', f'(run id: {run_id}) {load_type.capitalize()} loaded from {file_type}.')
-
-    def log_params(self, run_id, params_dict):
-        """
-        Record a dictionary of parameters associated with a run.
-
-        Parameters
-        ----------
-        run_id : str
-            Identifier of the run.
-        params_dict : dict
-            Mapping of parameter names to values. Values will be formatted as
-            ``key = value`` pairs in the log entry.
-        """
-        params_str = ', '.join([f'{key} = {val}' for key, val in params_dict.items()])
-
-        msg = f'(run id: {run_id}) {params_str}'
-        self.log('PARAM', msg)
-
+'''
 
 
 
@@ -800,304 +670,304 @@ class SimulationMeta(Meta):
 
 
 
-class RunIndexer:
-    """
-    Scan existing run directories and provide utilities to match runs by
-    parameter values.
+# class RunIndexer:
+#     """
+#     Scan existing run directories and provide utilities to match runs by
+#     parameter values.
 
-    Parameters
-    ----------
-    galaxy_name : str
-        Galaxy name used by the underlying :class:`FileHandler`.
-    results_base_directory : str, optional
-        Base results directory. Default: './results'.
+#     Parameters
+#     ----------
+#     galaxy_name : str
+#         Galaxy name used by the underlying :class:`FileHandler`.
+#     results_base_directory : str, optional
+#         Base results directory. Default: './results'.
 
-    Attributes
-    ----------
-    file_handler : FileHandler
-        File handler instance for interacting with the filesystem.
-    runs : dict
-        Mapping of ``run_id`` -> parameter dictionary loaded from the run's
-        metadata.
-    """
+#     Attributes
+#     ----------
+#     file_handler : FileHandler
+#         File handler instance for interacting with the filesystem.
+#     runs : dict
+#         Mapping of ``run_id`` -> parameter dictionary loaded from the run's
+#         metadata.
+#     """
 
-    def __init__(self, galaxy_name, results_base_directory='./results'):
-        self.file_handler = FileHandler(galaxy_name, results_base_directory)
+#     def __init__(self, galaxy_name, results_base_directory='./results'):
+#         self.file_handler = FileHandler(galaxy_name, results_base_directory)
 
-        self.runs = self._run_scan()
+#         self.runs = self._run_scan()
     
-    def _run_scan(self):
-        """
-        Inspect the results directory and build a mapping of run identifiers to
-        their parameter dictionaries.
+#     def _run_scan(self):
+#         """
+#         Inspect the results directory and build a mapping of run identifiers to
+#         their parameter dictionaries.
 
-        Returns
-        -------
-        dict
-            Mapping ``run_id`` (str) -> parameters (dict).
-        """
+#         Returns
+#         -------
+#         dict
+#             Mapping ``run_id`` (str) -> parameters (dict).
+#         """
         
-        runs = {}
+#         runs = {}
 
-        for run_dir in self.file_handler.results_directory.iterdir():
-            if not run_dir.is_dir():
-                continue
-            if 'run' not in run_dir.name:
-                continue
+#         for run_dir in self.file_handler.results_directory.iterdir():
+#             if not run_dir.is_dir():
+#                 continue
+#             if 'run' not in run_dir.name:
+#                 continue
 
-            run_id = run_dir.name.split('_')[1]
+#             run_id = run_dir.name.split('_')[1]
             
-            meta = self.file_handler.load_pickle('meta', run_id)
+#             meta = self.file_handler.load_pickle('meta', run_id)
 
-            runs[run_id] = meta.parameters
+#             runs[run_id] = meta.parameters
 
-        return runs
+#         return runs
     
-    def _convert_sim_params(self, **params):
-        """
-        Convert scalar or short-form simulation parameters to explicit x/y
-        parameter pairs.
+#     def _convert_sim_params(self, **params):
+#         """
+#         Convert scalar or short-form simulation parameters to explicit x/y
+#         parameter pairs.
 
-        The input may contain entries such as ``box_size=10`` or
-        ``N_px=[256,512]``. Scalars are duplicated to form length-2 arrays.
+#         The input may contain entries such as ``box_size=10`` or
+#         ``N_px=[256,512]``. Scalars are duplicated to form length-2 arrays.
 
-        Parameters
-        ----------
-        **params
-            Arbitrary parameter keyword arguments.
+#         Parameters
+#         ----------
+#         **params
+#             Arbitrary parameter keyword arguments.
 
-        Returns
-        -------
-        dict
-            New parameter dictionary where each parameter ``p`` is replaced by
-            ``p_x`` and ``p_y`` with numeric (Python-native) values.
+#         Returns
+#         -------
+#         dict
+#             New parameter dictionary where each parameter ``p`` is replaced by
+#             ``p_x`` and ``p_y`` with numeric (Python-native) values.
 
-        Raises
-        ------
-        AssertionError
-            If any provided parameter expands to more than two elements.
-        """
-        new_parameters = {}
-        for parameter_key, parameter_value in params.items():
-            param = np.array([parameter_value]).flatten()
-            if len(param) == 1:
-                param = np.array([param[0], param[0]])
-            assert len(param) == 2, "Too many dimensions supplied."
-            new_parameters[parameter_key + '_x'] = param[0].item()
-            new_parameters[parameter_key + '_y'] = param[1].item()
+#         Raises
+#         ------
+#         AssertionError
+#             If any provided parameter expands to more than two elements.
+#         """
+#         new_parameters = {}
+#         for parameter_key, parameter_value in params.items():
+#             param = np.array([parameter_value]).flatten()
+#             if len(param) == 1:
+#                 param = np.array([param[0], param[0]])
+#             assert len(param) == 2, "Too many dimensions supplied."
+#             new_parameters[parameter_key + '_x'] = param[0].item()
+#             new_parameters[parameter_key + '_y'] = param[1].item()
 
-        return new_parameters
+#         return new_parameters
         
 
     
-    def params_to_run(self, simulation = False, n_matches = 2, **search_params):
-        """
-        Return run identifiers whose stored parameters match the provided
-        search parameters.
+#     def params_to_run(self, simulation = False, n_matches = 2, **search_params):
+#         """
+#         Return run identifiers whose stored parameters match the provided
+#         search parameters.
 
-        Parameters
-        ----------
-        simulation : bool, optional
-            If ``True``, the provided ``search_params`` will be converted to
-            x/y pairs (see :meth:`_convert_sim_params`) and the required
-            number of matching fields will be doubled. Default is ``False``.
-        n_matches : int, optional
-            Minimum number of matching parameter key/value pairs required for
-            a run to be considered a match. Default is 2.
-        **search_params
-            Parameter key/value pairs to match against stored runs.
+#         Parameters
+#         ----------
+#         simulation : bool, optional
+#             If ``True``, the provided ``search_params`` will be converted to
+#             x/y pairs (see :meth:`_convert_sim_params`) and the required
+#             number of matching fields will be doubled. Default is ``False``.
+#         n_matches : int, optional
+#             Minimum number of matching parameter key/value pairs required for
+#             a run to be considered a match. Default is 2.
+#         **search_params
+#             Parameter key/value pairs to match against stored runs.
 
-        Returns
-        -------
-        str or list
-            If exactly one run matches, returns its ``run_id`` as a string.
-            Otherwise returns a list of matching ``run_id`` strings (possibly
-            empty).
-        """
-        runs = []
-        if simulation:
-            search_params = self._convert_sim_params(**search_params)
-            n_matches *= 2
-
-        
-        for run_id, run_params in self.runs.items():
-            match_params = set(search_params.items()) & set(run_params.items())
+#         Returns
+#         -------
+#         str or list
+#             If exactly one run matches, returns its ``run_id`` as a string.
+#             Otherwise returns a list of matching ``run_id`` strings (possibly
+#             empty).
+#         """
+#         runs = []
+#         if simulation:
+#             search_params = self._convert_sim_params(**search_params)
+#             n_matches *= 2
 
         
-            if len(match_params) >= n_matches:
-                runs.append(run_id)
+#         for run_id, run_params in self.runs.items():
+#             match_params = set(search_params.items()) & set(run_params.items())
 
-        if len(runs) == 1:
-            return runs[0]
         
-        else:
-            return runs
+#             if len(match_params) >= n_matches:
+#                 runs.append(run_id)
+
+#         if len(runs) == 1:
+#             return runs[0]
+        
+#         else:
+#             return runs
         
 
 
 
-class FileHandler:
-    """
-    Filesystem utilities for creating run directories and reading/writing
-    pickled objects.
+# class FileHandler:
+#     """
+#     Filesystem utilities for creating run directories and reading/writing
+#     pickled objects.
 
-    Parameters
-    ----------
-    galaxy_name : str
-        Galaxy name used to derive the results directory.
-    results_base_directory : str, optional
-        Root directory for results. Default is './results'.
+#     Parameters
+#     ----------
+#     galaxy_name : str
+#         Galaxy name used to derive the results directory.
+#     results_base_directory : str, optional
+#         Root directory for results. Default is './results'.
 
-    Attributes
-    ----------
-    galaxy_name : str
-        As provided.
-    results_directory : pathlib.Path
-        Path to the galaxy-specific results directory.
-    """
+#     Attributes
+#     ----------
+#     galaxy_name : str
+#         As provided.
+#     results_directory : pathlib.Path
+#         Path to the galaxy-specific results directory.
+#     """
 
-    def __init__(self, galaxy_name, results_base_directory='./results'):
-        self.galaxy_name = galaxy_name
-        self.results_directory = self._create_results_directory(results_base_directory)
+#     def __init__(self, galaxy_name, results_base_directory='./results'):
+#         self.galaxy_name = galaxy_name
+#         self.results_directory = self._create_results_directory(results_base_directory)
     
-    def _create_results_directory(self, results_base_directory='./results'):
+#     def _create_results_directory(self, results_base_directory='./results'):
 
-        """
-        Ensure the galaxy results directory exists, creating it if necessary.
+#         """
+#         Ensure the galaxy results directory exists, creating it if necessary.
 
-        Parameters
-        ----------
-        results_base_directory : str, optional
-            Base directory in which the galaxy directory will be placed. This
-            method returns the full path to the created or existing directory.
+#         Parameters
+#         ----------
+#         results_base_directory : str, optional
+#             Base directory in which the galaxy directory will be placed. This
+#             method returns the full path to the created or existing directory.
 
-        Returns
-        -------
-        pathlib.Path
-            The created or existing results directory path.
-        """
+#         Returns
+#         -------
+#         pathlib.Path
+#             The created or existing results directory path.
+#         """
 
-        results_directory = Path(results_base_directory) / self.galaxy_name
-
-
-        if not results_directory.exists():
-            results_directory.mkdir(parents=True)
-
-        return results_directory
+#         results_directory = Path(results_base_directory) / self.galaxy_name
 
 
-    def create_run_directory(self,run_id):
+#         if not results_directory.exists():
+#             results_directory.mkdir(parents=True)
 
-        """
-        Create a directory for a specific run within the galaxy results
-        directory.
+#         return results_directory
 
-        Parameters
-        ----------
-        run_id : str
-            Identifier for the run. The directory name will be ``run_{run_id}``.
 
-        Returns
-        -------
-        pathlib.Path
-            Path to the run directory.
-        """
+#     def create_run_directory(self,run_id):
 
-        run_directory =  self._get_run_directory(run_id)
+#         """
+#         Create a directory for a specific run within the galaxy results
+#         directory.
 
-        if not run_directory.exists():
-            run_directory.mkdir()
+#         Parameters
+#         ----------
+#         run_id : str
+#             Identifier for the run. The directory name will be ``run_{run_id}``.
+
+#         Returns
+#         -------
+#         pathlib.Path
+#             Path to the run directory.
+#         """
+
+#         run_directory =  self._get_run_directory(run_id)
+
+#         if not run_directory.exists():
+#             run_directory.mkdir()
             
         
 
-        return run_directory
+#         return run_directory
     
-    def _get_run_directory(self,run_id):
-        """
-        Compute the path to a run directory without creating it.
+#     def _get_run_directory(self,run_id):
+#         """
+#         Compute the path to a run directory without creating it.
 
-        Parameters
-        ----------
-        run_id : str
-            Run identifier.
+#         Parameters
+#         ----------
+#         run_id : str
+#             Run identifier.
 
-        Returns
-        -------
-        pathlib.Path
-            Path to ``results_directory / f'run_{run_id}'``.
-        """
-        return self.results_directory / f'run_{run_id}'
+#         Returns
+#         -------
+#         pathlib.Path
+#             Path to ``results_directory / f'run_{run_id}'``.
+#         """
+#         return self.results_directory / f'run_{run_id}'
 
-    def load_pickle(self, fname, run_id, log=True):
+#     def load_pickle(self, fname, run_id, log=True):
 
-        """
-        Load a pickled object from the specified run directory.
+#         """
+#         Load a pickled object from the specified run directory.
 
-        Parameters
-        ----------
-        fname : str
-            Base filename (without extension) of the pickled object.
-        run_id : str
-            Run identifier where the file is stored.
-        log : bool, optional
-            If ``True``, call the loaded object's logger to record the
-            load operation. Default: ``True``.
+#         Parameters
+#         ----------
+#         fname : str
+#             Base filename (without extension) of the pickled object.
+#         run_id : str
+#             Run identifier where the file is stored.
+#         log : bool, optional
+#             If ``True``, call the loaded object's logger to record the
+#             load operation. Default: ``True``.
 
-        Returns
-        -------
-        object
-            The unpickled Python object from the file.
-        """
+#         Returns
+#         -------
+#         object
+#             The unpickled Python object from the file.
+#         """
 
-        path = self.results_directory / f'run_{run_id}' / f'{fname}.pkl'
+#         path = self.results_directory / f'run_{run_id}' / f'{fname}.pkl'
 
 
-        with open(path, "rb") as f:
-            obj = pickle.load(f)
-        if log:
-            obj.logger.log_load(obj.run_id, obj._fname, 'pickle')
+#         with open(path, "rb") as f:
+#             obj = pickle.load(f)
+#         if log:
+#             obj.logger.log_load(obj.run_id, obj._fname, 'pickle')
 
-        return obj
+#         return obj
     
-    def pickle_object(self, obj):
-        """
-        Pickle an object into its run directory using the object's
-        ``run_id`` and ``_fname`` attributes.
+#     def pickle_object(self, obj):
+#         """
+#         Pickle an object into its run directory using the object's
+#         ``run_id`` and ``_fname`` attributes.
 
-        Parameters
-        ----------
-        obj : object
-            Object to pickle. Must expose ``run_id`` and ``_fname`` attributes
-            and a ``logger`` that implements :meth:`Logger.log_save`.
+#         Parameters
+#         ----------
+#         obj : object
+#             Object to pickle. Must expose ``run_id`` and ``_fname`` attributes
+#             and a ``logger`` that implements :meth:`Logger.log_save`.
 
-        Returns
-        -------
-        object
-            The same object that was passed in (returned for convenience).
-        """
-        path = self.results_directory / f'run_{obj.run_id}' / f'{obj._fname}.pkl'
-        with open(path, "wb") as f:
-            pickle.dump(obj, f)
+#         Returns
+#         -------
+#         object
+#             The same object that was passed in (returned for convenience).
+#         """
+#         path = self.results_directory / f'run_{obj.run_id}' / f'{obj._fname}.pkl'
+#         with open(path, "wb") as f:
+#             pickle.dump(obj, f)
 
 
-        obj.logger.log_save(obj.run_id, obj._fname, 'pickle')
-        return obj
+#         obj.logger.log_save(obj.run_id, obj._fname, 'pickle')
+#         return obj
     
-    def open_data(self, data_path):
-        """
-        Placeholder for a data-opening routine. Implementations should open
-        and return a dataset given a path.
+#     def open_data(self, data_path):
+#         """
+#         Placeholder for a data-opening routine. Implementations should open
+#         and return a dataset given a path.
 
-        Parameters
-        ----------
-        data_path : str or pathlib.Path
-            Path to the data file to open.
+#         Parameters
+#         ----------
+#         data_path : str or pathlib.Path
+#             Path to the data file to open.
 
-        Returns
-        -------
-        object or None
-            Implementation-specific dataset object or ``None`` for the
-            placeholder.
-        """
-        pass
+#         Returns
+#         -------
+#         object or None
+#             Implementation-specific dataset object or ``None`` for the
+#             placeholder.
+#         """
+#         pass
 

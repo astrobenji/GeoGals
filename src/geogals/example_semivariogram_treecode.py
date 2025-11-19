@@ -12,6 +12,7 @@ from astropy.wcs import WCS
 def semivariogram_fft(Z_grid, box_size, bins, d_lim):
 
     '''
+    
     fft semivariogram- updated 20/5/25 to fix normalisation problem
                         updated 28/5/25 to fix lag problem
     Parameters
