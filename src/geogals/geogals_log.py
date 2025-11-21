@@ -111,7 +111,7 @@ class Logger:
         file_type : str
             File format used (for example, 'pickle').
         """
-
+        
         self.log('SAVE', f'(run id: {run_id}) {save_type.capitalize()} saved to {file_type}.')
 
     def log_read(self, run_id, data_type, file_type):
@@ -127,7 +127,7 @@ class Logger:
         file_type : str
             File format used (for example, 'pickle').
         """
-        self.log('READ', f'(run id: {run_id}) {data_type.capitalize()} loaded from {file_type}.')
+        self.log('READ', f'(run id: {run_id}) {data_type.capitalize()} read from {file_type}.')
         pass
 
     def log_load(self, run_id, load_type, load_into):
@@ -144,9 +144,7 @@ class Logger:
         load_into : str
             Records the target object into which the data was loaded.
         """
-
-    
-        self.log('LOAD', f'(run id: {run_id}) {load_type.capitalize()} loaded into {load_into.capitalize()}.')
+        self.log('LOAD', f'(run id: {run_id}) {load_type} loaded into {load_into.capitalize()}.')
 
     def log_params(self, run_id, params_dict):
         """
@@ -164,5 +162,27 @@ class Logger:
 
         msg = f'(run id: {run_id}) {params_str}'
         self.log('PARAM', msg)
+    
+    def log_load_attrs(self, run_id,load_into, attr_name, attr_value, dict_name = None):
+        msg = f'{attr_name} stored in {load_into}'
 
+        
+        if run_id is not None:
+            msg = f'(run id: {run_id}) ' + msg
+
+
+        if isinstance(attr_value, dict):
+            self.log('PARAM', msg)
+            for key, value in attr_value.items():
+                self.log_load_attrs(run_id, load_into, key, value, dict_name=attr_name)
+        
+
+        else:
+            
+
+            if dict_name is not None:
+                msg += f' within {dict_name}'
+            if not hasattr(attr_value, '__iter__'):
+                msg +=  f' ({attr_name} = {str(attr_value)})'
+            self.log('PARAM', msg)
 

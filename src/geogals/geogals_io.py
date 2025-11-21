@@ -5,6 +5,7 @@ from pathlib import Path
 from geogals_log import *
 from astropy.io import fits
 import h5py
+import matplotlib.pyplot as plt
 
 ''' 
 By Tree
@@ -36,6 +37,7 @@ runs and converting between run ids and parameters.
 
 '''
 
+
 class RunIndexer:
     """
     Scan existing run directories and provide utilities to match runs by
@@ -61,22 +63,19 @@ class RunIndexer:
 
     def __init__(self, galaxy_name, results_base_directory='./results'):
         self.file_handler = FileHandler(galaxy_name, results_base_directory)
-
         self.runs = self._run_scan()
-    
+
     def _run_scan(self):
         """
-        Inspect the results directory and build a mapping of run identifiers to
+        Scan the results directory and build a mapping of run identifiers to
         their parameter dictionaries.
 
         Returns
         -------
         dict
-            Mapping ``run_id`` (str) -> parameters (dict).
+            Mapping of ``run_id`` (str) -> parameters (dict).
         """
-        
         runs = {}
-
         for run_dir in self.file_handler.results_directory.iterdir():
             if not run_dir.is_dir():
                 continue
@@ -84,20 +83,17 @@ class RunIndexer:
                 continue
 
             run_id = run_dir.name.split('_')[1]
-            
             meta = self.file_handler.load_pickle('meta', run_id)
-
             runs[run_id] = meta.parameters
-
         return runs
-    
+
     def _convert_sim_params(self, **params):
         """
         Convert scalar or short-form simulation parameters to explicit x/y
         parameter pairs.
 
-        The input may contain entries such as ``box_size=10`` or
-        ``N_px=[256,512]``. Scalars are duplicated to form length-2 arrays.
+        Scalars are duplicated to form length-2 arrays. For example, ``box_size=10``
+        becomes ``box_size_x=10`` and ``box_size_y=10``.
 
         Parameters
         ----------
@@ -107,78 +103,64 @@ class RunIndexer:
         Returns
         -------
         dict
-            New parameter dictionary where each parameter ``p`` is replaced by
-            ``p_x`` and ``p_y`` with numeric (Python-native) values.
+            Parameter dictionary where each parameter ``p`` is replaced by
+            ``p_x`` and ``p_y`` with numeric values.
 
         Raises
         ------
         AssertionError
-            If any provided parameter expands to more than two elements.
+            If any parameter expands to more than two elements.
         """
         new_parameters = {}
-        for parameter_key, parameter_value in params.items():
-            param = np.array([parameter_value]).flatten()
+        for key, value in params.items():
+            param = np.array([value]).flatten()
             if len(param) == 1:
                 param = np.array([param[0], param[0]])
             assert len(param) == 2, "Too many dimensions supplied."
-            new_parameters[parameter_key + '_x'] = param[0].item()
-            new_parameters[parameter_key + '_y'] = param[1].item()
-
+            new_parameters[key + '_x'] = param[0].item()
+            new_parameters[key + '_y'] = param[1].item()
         return new_parameters
-        
 
-    
-    def params_to_run(self, simulation = False, n_matches = 2, **search_params):
+    def params_to_run(self, simulation=False, n_matches=2, **search_params):
         """
-        Return run identifiers whose stored parameters match the provided
-        search parameters.
+        Find run identifiers that match provided parameter values.
 
         Parameters
         ----------
         simulation : bool, optional
-            If ``True``, the provided ``search_params`` will be converted to
-            x/y pairs (see :meth:`_convert_sim_params`) and the required
-            number of matching fields will be doubled. Default is ``False``.
+            If True, convert ``search_params`` to x/y pairs using
+            :meth:`_convert_sim_params` and double ``n_matches``. Default False.
         n_matches : int, optional
-            Minimum number of matching parameter key/value pairs required for
-            a run to be considered a match. Default is 2.
+            Minimum number of parameter matches required. Default 2.
         **search_params
             Parameter key/value pairs to match against stored runs.
 
         Returns
         -------
         str or list
-            If exactly one run matches, returns its ``run_id`` as a string.
-            Otherwise returns a list of matching ``run_id`` strings (possibly
-            empty).
+            If exactly one run matches, return its ``run_id`` as a string.
+            Otherwise, return a list of matching ``run_id`` strings.
         """
-        runs = []
+        runs_found = []
         if simulation:
             search_params = self._convert_sim_params(**search_params)
             n_matches *= 2
 
-        
         for run_id, run_params in self.runs.items():
             match_params = set(search_params.items()) & set(run_params.items())
-
-        
             if len(match_params) >= n_matches:
-                runs.append(run_id)
+                runs_found.append(run_id)
 
-        if len(runs) == 1:
-            return runs[0]
-        
-        else:
-            return runs
-        
-
+        if len(runs_found) == 1:
+            return runs_found[0]
+        return runs_found
 
 
 class FileHandler:
     """
     Filesystem utilities for creating run directories and reading/writing
-    pickled objects.
-    
+    pickled or other data files.
+
     All methods by Tree.
 
     Parameters
@@ -186,8 +168,7 @@ class FileHandler:
     galaxy_name : str
         Galaxy name used to derive the results directory.
     results_base_directory : str, optional
-        Root directory for results. Default is './results'.
-    
+        Root directory for results. Default './results'.
 
     Attributes
     ----------
@@ -200,60 +181,44 @@ class FileHandler:
     def __init__(self, galaxy_name, results_base_directory='./results'):
         self.galaxy_name = galaxy_name
         self.results_directory = self._create_results_directory(results_base_directory)
-    
-    def _create_results_directory(self, results_base_directory='./results'):
 
+    def _create_results_directory(self, results_base_directory='./results'):
         """
         Ensure the galaxy results directory exists, creating it if necessary.
 
         Parameters
         ----------
         results_base_directory : str, optional
-            Base directory in which the galaxy directory will be placed. This
-            method returns the full path to the created or existing directory.
+            Base directory in which the galaxy directory will be created.
 
         Returns
         -------
         pathlib.Path
             The created or existing results directory path.
         """
-
         results_directory = Path(results_base_directory) / self.galaxy_name
-
-
-        if not results_directory.exists():
-            results_directory.mkdir(parents=True)
-
+        results_directory.mkdir(parents=True, exist_ok=True)
         return results_directory
 
-
-    def create_run_directory(self,run_id):
-
+    def create_run_directory(self, run_id):
         """
-        Create a directory for a specific run within the galaxy results
-        directory.
+        Create a directory for a specific run.
 
         Parameters
         ----------
         run_id : str
-            Identifier for the run. The directory name will be ``run_{run_id}``.
+            Run identifier. Directory name: ``run_{run_id}``.
 
         Returns
         -------
         pathlib.Path
             Path to the run directory.
         """
-
-        run_directory =  self._get_run_directory(run_id)
-
-        if not run_directory.exists():
-            run_directory.mkdir()
-            
-        
-
+        run_directory = self._get_run_directory(run_id)
+        run_directory.mkdir(exist_ok=True)
         return run_directory
-    
-    def _get_run_directory(self,run_id):
+
+    def _get_run_directory(self, run_id):
         """
         Compute the path to a run directory without creating it.
 
@@ -270,265 +235,292 @@ class FileHandler:
         return self.results_directory / f'run_{run_id}'
 
     def load_pickle(self, fname, run_id, log=True):
-
         """
-        Load a pickled object from the specified run directory.
+        Load a pickled object from a run directory.
 
         Parameters
         ----------
         fname : str
-            Base filename (without extension) of the pickled object.
+            Filename without extension.
         run_id : str
-            Run identifier where the file is stored.
+            Run identifier.
         log : bool, optional
-            If ``True``, call the loaded object's logger to record the
-            load operation. Default: ``True``.
+            If True, call object's logger. Default True.
 
         Returns
         -------
         object
-            The unpickled Python object from the file.
+            The unpickled object.
         """
-
         path = self.results_directory / f'run_{run_id}' / f'{fname}.pkl'
-
-
         with open(path, "rb") as f:
             obj = pickle.load(f)
         if log:
             obj.logger.log_read(obj.run_id, obj._fname, 'pickle')
-
         return obj
-    
+
     def pickle_object(self, obj):
         """
-        Pickle an object into its run directory using the object's
-        ``run_id`` and ``_fname`` attributes.
+        Pickle an object into its run directory.
 
         Parameters
         ----------
         obj : object
-            Object to pickle. Must expose ``run_id`` and ``_fname`` attributes
-            and a ``logger`` that implements :meth:`Logger.log_save`.
+            Object must have ``run_id``, ``_fname``, and ``logger`` attributes.
 
         Returns
         -------
         object
-            The same object that was passed in (returned for convenience).
+            The same object passed in.
         """
         path = self.results_directory / f'run_{obj.run_id}' / f'{obj._fname}.pkl'
         with open(path, "wb") as f:
             pickle.dump(obj, f)
-
-
         obj.logger.log_save(obj.run_id, obj._fname, 'pickle')
         return obj
-    
-    def open_data(self, data_path, **kwargs):
-        """
-        Open a data file and return its contents using the appropriate loader
-        based on file suffix.
 
-        This method dispatches to one of the internal file-specific loaders
-        (FITS, HDF5, NumPy, pickle, etc.) depending on the file extension.  
-        Additional keyword arguments are passed directly to the selected loader.
+    def load_data(self, data_path, **kwargs):
+        """
+        Load a data file using an appropriate loader based on file extension.
 
         Parameters
         ----------
         data_path : str or pathlib.Path
-            Path to the data file to open.
-
+            Path to the file.
         **kwargs
-            Additional keyword arguments forwarded to the specific open function.
-            These depend on the file type. For example, ``numpy.load`` may accept
-            ``allow_pickle=True``.
+            Forwarded to the loader.
 
         Returns
         -------
         object
-            The parsed data structure produced by the corresponding loader.
-            The exact return type depends on the file format:
-
-            - FITS → ``(list of numpy.ndarray, list of fits.Header)``
-            - HDF5 → ``dict`` (optionally with a ``header`` dict)
-            - NPY  → ``numpy.ndarray``
-            - PKL  → user-defined Python object
-
-        Notes
-        -----
-        Unsupported file extensions will return ``None``.
+            Loaded data.
         """
         data_path = Path(data_path)
+        loader = self._find_load_method_from_suffix(data_path.suffix.lower())
+        return loader(data_path, **kwargs)
 
-        open_method = self._find_open_method_from_suffix(data_path.suffix.lower())
-        return open_method(data_path, **kwargs)
-                
-
-    def _find_open_method_from_suffix(self, ext):
+    def _find_load_method_from_suffix(self, ext):
         """
-        Return an appropriate file-opening function for the given file extension.
+        Map file extension to loader method.
 
         Parameters
         ----------
         ext : str
-            File extension including the leading dot (e.g., ``".fits"``).
+            File extension including dot (e.g., '.fits').
 
         Returns
         -------
         callable
-            A method or function capable of opening the file type.
+            Function to load the file type.
 
         Raises
         ------
         KeyError
-            If the extension does not correspond to a known data format.
+            If unsupported extension.
         """
         if ext in [".fits", ".fit", ".fts"]:
-            return self._open_fits
+            return self._load_fits
         elif ext in [".h5", ".hdf5"]:
-            return self._open_hdf5
+            return self._load_hdf5
         elif ext == ".npy":
             return np.load
         elif ext == ".pkl":
-            return self._open_pickle_data
+            return self._load_pickle_data
         else:
             raise KeyError(f"Unsupported file extension: {ext!r}")
 
-
-    def _open_fits(self, data_path):
+    def _load_fits(self, data_path, header_only=False, no_header=False, data_names=None, **kwargs):
         """
-        Open a FITS file and return its data and headers.
+        Load a FITS file and return its data and headers.
 
         Parameters
         ----------
         data_path : str or pathlib.Path
             Path to the FITS file.
+        header_only : bool, optional
+            If True, only return headers.
+        no_header : bool, optional
+            If True, return only data.
+        data_names : list or None, optional
+            Names to assign to each HDU data array. Default None.
 
         Returns
         -------
-        tuple
-            A two-element tuple ``(data, header)`` where:
-
-            - ``data`` : list of numpy.ndarray or ``None``  
-            The HDU data arrays from each extension.
-            - ``header`` : list of astropy.io.fits.Header  
-            The corresponding headers.
-
-        Notes
-        -----
-        ``fits.verify('fix')`` is applied to correct minor FITS standard issues.
+        tuple or dict
+            Tuple ``(data, header)`` or ``data``/``header`` depending on flags.
         """
+        data = {}
         with fits.open(data_path, 'readonly') as file:
             file.verify('fix')
-            data = [f.data for f in file]
-            header = [f.header for f in file]
+            if data_names is None:
+                data_names = np.arange(len(file))
+            assert len(data_names) == len(file)
+            for i, f in enumerate(file):
+                if header_only or not no_header:
+                    h = dict(f.header)
+                    if i == 0:
+                        header = h.copy()
+                    else:
+                        for key, val in h.items():
+                            if key in header and val != header[key]:
+                                header[f"{key}_{data_names[i]}"] = val
+                            else:
+                                header[key] = val
+                if not header_only:
+                    data[data_names[i]] = f.data
+            if header_only:
+                return header
+            if no_header:
+                return data
+            return data, header
 
-        return data, header
-        
-
-    def _open_hdf5(self, data_path):
+    def load_header_from_file(self, data_path, **kwargs):
         """
-        Open an HDF5 file and recursively convert its contents to a Python dict.
+        Load only the header from a FITS/HDF5 file.
+
+        Parameters
+        ----------
+        data_path : str or pathlib.Path
+            Path to the data file.
+
+        Returns
+        -------
+        dict
+            Header dictionary.
+        """
+        return self.load_data(data_path, header_only=True, **kwargs)
+
+    def _load_hdf5(self, data_path, group_name=None, ignore_header=False, header_only=False, **kwargs):
+        """
+        Load an HDF5 file and convert to nested dictionaries.
 
         Parameters
         ----------
         data_path : str or pathlib.Path
             Path to the HDF5 file.
+        group_name : str, list, optional
+            Specific group(s) to extract. Default None.
+        ignore_header : bool, optional
+            If True, ignore headers. Default False.
+        header_only : bool, optional
+            If True, return only headers.
 
         Returns
         -------
         dict or tuple
-            If the root or any group contains attributes under the name
-            ``"header"``:
-
-            - ``(data_dict, header_dict)``
-
-            Otherwise only:
-
-            - ``data_dict``
-
-            where ``data_dict`` is a nested dictionary mapping dataset and group
-            names to NumPy arrays or sub-dictionaries.
+            Nested dictionary of datasets, optionally with header.
         """
         with h5py.File(data_path, 'r') as file:
-            result = self._get_hdf5_dict(file)
+            if header_only:
+                return self._get_hdf5_header_dict(file)
+            result = self._get_hdf5_dict(file, group_name)
 
-        if 'header' in result.keys():
+        if group_name is not None:
+            group_name = np.array([group_name]).flatten()
+            if len(group_name) == 1:
+                data = result[group_name[0]]
+            else:
+                data = {name.item(): result[name] for name in group_name}
+        else:
+            data = result
+
+        if 'header' in result and not ignore_header:
             header = result.pop('header')
-            return result, header
+            return data, header
+        return data
 
-        return result
-        
-
-    def _get_hdf5_dict(self, file):
+    def _get_hdf5_dict(self, file, group_name=None):
         """
-        Recursively convert an HDF5 file or group into a nested dictionary.
+        Recursively convert HDF5 group/file into nested dictionary.
 
         Parameters
         ----------
         file : h5py.File or h5py.Group
-            An open HDF5 object to inspect.
+            HDF5 object to convert.
+        group_name : str, list, optional
+            Specific group(s) to include. Default None.
 
         Returns
         -------
         dict
-            A nested dictionary where each HDF5 group becomes a dictionary and
-            datasets become NumPy arrays. Attributes are added either under:
-
-            - ``'header'`` (for file/global or group-level attributes), or  
-            - ``'<dataset>_attrs'`` for dataset attributes.
+            Nested dictionary of data and attributes.
         """
         h5dict = {}
-            
         if hasattr(file, 'attrs') and len(file.attrs) > 0:
             h5dict['header'] = dict(file.attrs)
 
         for key, item in file.items():
             if isinstance(item, h5py.Group):
                 if key.lower() == 'header':
-                    h5dict = h5dict | self._get_hdf5_dict(item)
-                else:
+                    h5dict |= self._get_hdf5_dict(item)
+                elif group_name is None or key in group_name:
                     h5dict[key] = self._get_hdf5_dict(item)
-
             elif isinstance(item, h5py.Dataset):
                 h5dict[key] = item[()]
-
                 if len(item.attrs) > 0:
-                    h5dict[key + '_attrs'] = dict(item.attrs)
-
+                    h5dict[f"{key}_attrs"] = dict(item.attrs)
         return h5dict
-        
 
-    def _open_pickle_data(self, data_path, data_type=np.ndarray):
+    def _get_hdf5_header_dict(self, file):
         """
-        Open a pickle file and ensure the returned object has the expected type.
+        Extract only the header information from an HDF5 file.
+
+        Parameters
+        ----------
+        file : h5py.File or h5py.Group
+            HDF5 object.
+
+        Returns
+        -------
+        dict
+            Header dictionary.
+        """
+        header_dict = dict(file.attrs) if hasattr(file, 'attrs') else {}
+        for key, item in file.items():
+            if key.lower() == 'header':
+                if isinstance(item, h5py.Group):
+                    header_dict |= self._get_hdf5_dict(item)['header']
+                elif isinstance(item, h5py.Dataset):
+                    header_dict[key] = item[()]
+        return header_dict
+
+    def _load_pickle_data(self, data_path, data_type=np.ndarray):
+        """
+        Load a pickle file and validate its type.
 
         Parameters
         ----------
         data_path : str or pathlib.Path
             Path to the pickle file.
-
-        data_type : type or tuple of types, optional
-            Expected type of the unpickled object.  
-            If the object is not an instance of ``data_type``, a ``TypeError`` is
-            raised. Default is ``numpy.ndarray``.
+        data_type : type or tuple, optional
+            Expected type. Default ``np.ndarray``.
 
         Returns
         -------
         object
-            The unpickled Python object.
+            The loaded pickle object.
 
         Raises
         ------
         TypeError
-            If the loaded object is not an instance of ``data_type``.
+            If object is not of expected type.
         """
         with open(data_path, "rb") as f:
             data = pickle.load(f)
-            
         if not isinstance(data, data_type):
-            raise TypeError(
-                f"Pickle object is type {type(data)}, expected {data_type}"
-            )
-
+            raise TypeError(f"Pickle object is type {type(data)}, expected {data_type}")
         return data
+
+    def save_plot(self, filename, run_id):
+        """
+        Save the current Matplotlib figure to the run directory.
+
+        Parameters
+        ----------
+        filename : str
+            Name of the file to save.
+        run_id : str
+            Run identifier.
+        """
+        filepath = self._get_run_directory(run_id) / filename
+        plt.savefig(filepath)
