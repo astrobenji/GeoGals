@@ -10,6 +10,19 @@ from statsmodels.regression.linear_model import GLS
 import inspect
 import scipy
 
+'''
+By Tree
+Module for exploratory data analysis
+
+Currently:
+
+gradient model
+
+to do:
+other models:
+    polynomial
+'''
+
 class GeoMap(SimulationMeta):
     """
     Container for two-dimensional maps derived from simulation or observational
