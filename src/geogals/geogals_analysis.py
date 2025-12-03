@@ -10,19 +10,6 @@ from statsmodels.regression.linear_model import GLS
 import inspect
 import scipy
 
-'''
-By Tree
-Module for exploratory data analysis
-
-Currently:
-
-gradient model
-
-to do:
-other models:
-    polynomial
-'''
-
 class GeoMap(SimulationMeta):
     """
     Container for two-dimensional maps derived from simulation or observational
@@ -64,8 +51,12 @@ class GeoMap(SimulationMeta):
         super().__init__(galaxy_name, results_base_directory)
         self.load_meta(meta, run_id, load_into='map', **parameters)
         self._fname = 'map'
+    
+    # def _create_subrun(self, **run_params):
+    #     self._create_run(parameters=run_params, run_id=self.run_id)
 
-    def _property(self, property_name, nan_mask=True, max_r=None, return_r=False):
+
+    def _property(self, property_name):
         """
         Retrieve a stored map property by name, optionally applying NaN and
         radial masks.
@@ -101,21 +92,48 @@ class GeoMap(SimulationMeta):
         """
         if hasattr(self, property_name):
             vals = getattr(self, property_name)
-            if max_r is not None:
-                pixels_to_keep = self._r_mask(max_r)
-                if nan_mask:
-                    pixels_to_keep *= self._nan_mask(vals)
-            elif nan_mask:
-                pixels_to_keep = self._nan_mask(vals)
-            else:
-                if return_r:
-                    return vals, self.R
-                return vals
-            if return_r:
-                return vals[pixels_to_keep], self.R[pixels_to_keep]
-            return vals[pixels_to_keep]
         else:
             raise AttributeError(f'no property named {property_name}')
+        return vals
+
+
+
+        
+    def _get_property(self, property_name, nan_mask=True, max_r=None, return_r=False, return_sigma = False):
+        vals = self._property(property_name)
+        pixels_to_keep = None
+        if max_r is not None:
+            pixels_to_keep = self._r_mask(max_r)
+            if nan_mask:
+                pixels_to_keep *= self._nan_mask(vals)
+        elif nan_mask:
+            pixels_to_keep = self._nan_mask(vals)
+        
+        vals = self._apply_mask(vals, mask=pixels_to_keep)
+        if return_sigma:
+            sigma = self._e_property(property_name)
+            sigma = self._apply_mask(sigma, mask=pixels_to_keep)
+            if return_r:
+                
+                return vals,self._apply_mask(self.R, mask=pixels_to_keep), sigma
+            return vals, sigma
+        
+        if return_r:
+            return vals,self._apply_mask(self.R, mask=pixels_to_keep)
+        return vals
+        
+    def _e_property(self, property_name):
+        if hasattr(self, f'e_{property_name}'):
+            return getattr(self, f'e_{property_name}')
+        else:
+            return None
+        
+    def _apply_mask(self, values, mask):
+        if values is None or mask is None:
+            return values
+
+        
+        return values[mask]
 
     def _header_value(self, header_property):
         """
@@ -209,7 +227,9 @@ class GeoMap(SimulationMeta):
         """
         return self.R < max_r
 
-    def _get_gradient(self, property_name, max_r, recompute=False, override=False):
+
+
+    def _get_polynomial(self, property_name, max_r, degree, recompute=False, override=False):
         """
         Retrieve or compute the fitted radial gradient for a property.
 
@@ -231,18 +251,22 @@ class GeoMap(SimulationMeta):
             Dictionary containing parameters, covariance, residuals, and
             ``max_r``.
         """
-        if not hasattr(self, f'{property_name}_gradient_dict') or recompute:
-            gradient_dict = self._fit_gradient(property_name, max_r, override)
+        if degree ==1:
+            dict_name = f'{property_name}_gradient_dict'
         else:
-            gradient_dict = getattr(self, f'{property_name}_gradient_dict')
-            if gradient_dict['max_r'] != max_r:
-                gradient_dict = self._get_gradient(
-                    property_name, max_r,
+            dict_name = f'{property_name}_polynomial_{degree}_dict'
+        if not hasattr(self, dict_name) or recompute:
+            polynomial_dict = self._fit_polynomial(property_name, max_r, degree, override)
+        else:
+            polynomial_dict = getattr(self, dict_name)
+            if polynomial_dict['max_r'] != max_r:
+                polynomial_dict = self._get_polynomial(
+                    property_name, max_r, degree,
                     recompute=True,
                     override=override
                 )
-        return gradient_dict
-
+        return polynomial_dict
+    
     def _fit_polynomial(self, property_name, max_r, degree, override=False):
         """
         Fit a polynomial of specified degree to radial property values.
@@ -261,114 +285,86 @@ class GeoMap(SimulationMeta):
 
         """
         max_r_val = self._get_radial_maximum(max_r)
-        values, r_values = self._property(property_name, nan_mask=True,
-                                          max_r=max_r_val, return_r=True)
-        params, cov = np.polyfit(r_values, values, degree, cov=True)
+        values, r_values, sigma = self._get_property(property_name, nan_mask=True,
+                                          max_r=max_r_val, return_r=True, return_sigma = True)
+        cov = np.vander(r_values, degree + 1, increasing=True)
+        poly_model = GLS(values, cov, sigma).fit()
+        params = poly_model.params
+        cov = poly_model.normalized_cov_params
 
-        polynomial_dict = {'params': params, 'cov': cov, 'max_r': max_r}
-        # gradient_dict['residuals'] = self._gradient_residuals(
-        #     property_name, params, max_r_val
-        # )
-        self._compare_attribute_with_argument(
-            **{f'{property_name}_polynomial_{degree}_dict': polynomial_dict},
-            override=override
+        polynomial_dict = {'params': params, 'cov': cov, 'max_r': max_r, 'degree': degree}
+        residuals = self._polynomial_residuals(
+            property_name, params, max_r_val
         )
-        return polynomial_dict
-
-        
-
-    def _fit_gradient(self, property_name, max_r, override=False):
-        """
-        Fit a linear radial gradient to a property and store the result.
-
-        Parameters
-        ----------
-        property_name : str
-            Name of the property being modelled.
-        max_r : float or str
-            Maximum radius for use in the fit.
-        override : bool, optional
-            If ``True``, override existing metadata on conflicts.
-
-        Returns
-        -------
-        dict
-            Dictionary containing:
-            - ``'params'`` : fitted intercept and slope  
-            - ``'cov'`` : covariance matrix  
-            - ``'max_r'`` : radial limit used  
-            - ``'residuals'`` : residual field
-
-        Notes
-        -----
-        Uses ``statsmodels.GLS`` for the regression.
-        """
-        max_r_val = self._get_radial_maximum(max_r)
-        values, r_values = self._property(property_name, nan_mask=True,
-                                          max_r=max_r_val, return_r=True)
-
-        covariates = np.array([np.ones(len(r_values)), r_values]).T
-        grad_model = GLS(values, covariates).fit()
-
-        params = grad_model.params
-        cov = grad_model.normalized_cov_params
-
-        gradient_dict = {'params': params, 'cov': cov, 'max_r': max_r}
-        gradient_dict['residuals'] = self._gradient_residuals(
+        polynomial_dict['residuals'] = self._polynomial_residuals(
             property_name, params, max_r_val
         )
 
-        self._compare_attribute_with_argument(
-            **{f'{property_name}_gradient_dict': gradient_dict},
-            override=override
-        )
-
-        return gradient_dict
-
-    def gradient(self, property_name, max_r, plot=False, recompute=True,
-                 override=False, **kwargs):
+        if degree == 1:
+            self._compare_attribute_with_argument(
+                **{f'{property_name}_gradient_dict': polynomial_dict},
+                override=override
+            )
+        else:
+            self._compare_attribute_with_argument(
+                **{f'{property_name}_polynomial_{degree}_dict': polynomial_dict},
+                override=override
+            )
+        return polynomial_dict
+    
+    def _polynomial_residuals(self, property_name, params, max_r):
         """
-        Fit or retrieve the stored radial gradient for a property.
+        Compute per-pixel residuals from a fitted polynomial model.
 
         Parameters
         ----------
         property_name : str
             Name of the property.
-        max_r : float or str
-            Maximum radius for the fit.
-        plot : bool, optional
-            If ``True``, plot the fitted gradient. Default is ``False``.
-        recompute : bool, optional
-            If ``True``, recompute fit even if stored. Default is ``True``.
-        override : bool, optional
-            Passed to metadata comparison routines. Default is ``False``.
-        **kwargs : dict
-            Additional parameters passed to plotting routines.
+        params : array_like
+            Fitted gradient parameters ``[, ]``.
+        max_r : float
+            Maximum radius for applying the model.
 
         Returns
         -------
-        params : ndarray
-            Fitted gradient parameters (intercept, slope).
-        cov : ndarray
-            Covariance matrix of the fit.
+        ndarray
+            Residual map of ``property - model``.
         """
-        gradient_dict = self._get_gradient(
-            property_name, max_r, recompute, override
-        )
-        params = gradient_dict['params']
-        cov = gradient_dict['cov']
 
-        if plot:
-            self._plot_gradient(property_name, params, max_r, **kwargs)
+        degree = len(params) - 1
 
-        return params, cov
+        params = params[::-1]
 
-    def _plot_gradient(self, property_name, parameters, max_r,
+        mu_grid = np.sum([params[i] * self.R**(degree-i) for i in range(len(params))], axis=0)
+        mu_grid[~self._r_mask(max_r)] = np.nan
+
+
+        property_grid = self._get_property(property_name, nan_mask=False,
+                                       max_r=None, return_sigma=False)
+
+        return property_grid - mu_grid
+    
+    
+        
+
+  
+    def _scatter_r_against_property(self, property_name, max_r_val,
+                       point_colour='tab:blue',
+                       point_size=0.1,
+                       ):
+        values, r_values = self._get_property(property_name, nan_mask=True,
+                                          max_r=max_r_val, return_r=True)
+        
+        plt.scatter(r_values, values, c=point_colour, s=point_size)
+        
+        
+    
+    def _plot_polynomial(self, property_name, params, max_r,
                        point_colour='tab:blue', line_colour='k',
                        point_size=0.1, save_plot=False, fname=None,
                        **kwargs):
         """
-        Plot radial property values with a fitted gradient line.
+        Plot radial property values with a fitted polunomial line.
 
         Parameters
         ----------
@@ -397,40 +393,92 @@ class GeoMap(SimulationMeta):
         """
         max_r_val = self._get_radial_maximum(max_r)
         r = np.linspace(0, max_r_val)
+        self._scatter_r_against_property(property_name, max_r_val=max_r_val, point_colour=point_colour, point_size=point_size)
+        degree = len(params)-1
+        params = params[::-1]
+        line_vals = np.sum([params[i] * r**(degree-i) for i in range(len(params))], axis=0)
 
-        values, r_values = self._property(property_name, nan_mask=True,
-                                          max_r=max_r_val, return_r=True)
-
-        plt.scatter(r_values, values, c=point_colour, s=point_size)
-        plt.plot(r, parameters[1] * r + parameters[0], c=line_colour)
-        self._label_gradient_plot(property_name, **kwargs)
+        
+        plt.plot(r, line_vals, c=line_colour)
+        self._label_radial_plot(property_name, **kwargs)
 
         if save_plot:
             fname = self._get_gradient_plot_filename(property_name, fname)
             self.file_handler.save_plot(fname, self.run_id)
             self.logger.log_save(self.run_id, fname, 'png')
 
-    def _get_gradient_plot_filename(self, property_name, fname):
+    def polynomial(self, property_name, max_r,degree, plot=False,
+                 override=False, **kwargs):
         """
-        Construct a filename for gradient plots.
+        Fit or retrieve the stored radial gradient for a property.
 
         Parameters
         ----------
         property_name : str
-            Name of the property being plotted.
-        fname : str or None
-            Proposed filename.
+            Name of the property.
+        max_r : float or str
+            Maximum radius for the fit.
+        plot : bool, optional
+            If ``True``, plot the fitted gradient. Default is ``False``.
+        recompute : bool, optional
+            If ``True``, recompute fit even if stored. Default is ``True``.
+        override : bool, optional
+            Passed to metadata comparison routines. Default is ``False``.
+        **kwargs : dict
+            Additional parameters passed to plotting routines.
 
         Returns
         -------
-        str
-            Final filename for the gradient plot.
+        params : ndarray
+            Fitted gradient parameters (intercept, slope).
+        cov : ndarray
+            Covariance matrix of the fit.
         """
-        if fname is None:
-            fname = property_name + '_gradient'
-        return fname
+        polynomial_dict = self._get_polynomial(
+            property_name, max_r, degree, override
+        )
+        params = polynomial_dict['params']
+        cov = polynomial_dict['cov']
 
-    def _label_gradient_plot(self, property_name, **kwargs):
+        if plot:
+            self._plot_polynomial(property_name, params, max_r, **kwargs)
+
+        return params, cov
+
+    def gradient(self, property_name, max_r,degree, plot=False,
+                 override=False, **kwargs):
+        """
+        Fit or retrieve the stored radial gradient for a property.
+
+        Parameters
+        ----------
+        property_name : str
+            Name of the property.
+        max_r : float or str
+            Maximum radius for the fit.
+        plot : bool, optional
+            If ``True``, plot the fitted gradient. Default is ``False``.
+        recompute : bool, optional
+            If ``True``, recompute fit even if stored. Default is ``True``.
+        override : bool, optional
+            Passed to metadata comparison routines. Default is ``False``.
+        **kwargs : dict
+            Additional parameters passed to plotting routines.
+
+        Returns
+        -------
+        params : ndarray
+            Fitted gradient parameters (intercept, slope).
+        cov : ndarray
+            Covariance matrix of the fit.
+        """
+        params, cov = self.polynomial(self, property_name, max_r,degree, plot,
+                 override, **kwargs)
+
+        return params, cov
+
+
+    def _label_radial_plot(self, property_name, **kwargs):
         """
         Label the gradient plot axes using header information when possible.
 
@@ -491,30 +539,7 @@ class GeoMap(SimulationMeta):
 
         return f'{property_label} ({property_units})'
 
-    def _gradient_residuals(self, property_name, params, max_r):
-        """
-        Compute per-pixel residuals from a fitted gradient model.
 
-        Parameters
-        ----------
-        property_name : str
-            Name of the property.
-        params : array_like
-            Fitted gradient parameters ``[intercept, slope]``.
-        max_r : float
-            Maximum radius for applying the model.
-
-        Returns
-        -------
-        ndarray
-            Residual map of ``property - model``.
-        """
-        mu_grid = self.R * params[1] + params[0]
-        mu_grid[~self._r_mask(max_r)] = np.nan
-
-        property_grid = self._property(property_name, nan_mask=False,
-                                       max_r=None)
-        return property_grid - mu_grid
 
     def _get_gradient_residuals(self, property_name, max_r):
         """
@@ -532,7 +557,8 @@ class GeoMap(SimulationMeta):
         ndarray
             Residual field corresponding to the gradient model.
         """
-        gradient_dict = self._get_gradient(property_name, max_r)
+        gradient_dict = self._get_polynomial(property_name, max_r, degree=1)
+  
         return gradient_dict['residuals']
 
     def _semivariogram(self, property_name, max_r, bins=50,
@@ -574,10 +600,9 @@ class GeoMap(SimulationMeta):
         - Uses FFT-based convolution for efficient computation.
         - ``self.box_size`` must define the physical size of the map.
         """
+
         box_size = getattr(self, 'box_size')
         residuals = self._get_gradient_residuals(property_name, max_r)
-        self._nan_mask(residuals)
-
         data_grid = residuals.copy()
 
         nx, ny = data_grid.shape
