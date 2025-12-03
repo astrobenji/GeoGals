@@ -169,29 +169,55 @@ class Meta(ABC):
                 self.logger.log_load_attrs(self.run_id, self._fname, key, value)
             else:
                 self.logger.log_load_attrs(None, self._fname, key, value)
+    
+    def _create_run(self, parameters=None, run_id=None):
+        """
+        Create a run directory or subrun directory with a determenitistic identifier based on `parameters`.
 
-    def _run_id(self):
+        If a run_id is passed, a subrun directory is created within the directory for that run.
+
+        If no run_id is passed, a run directory is created and the run_id attribute is set
+
+
+        Returns
+        -------
+
+        None
+        """
+        if run_id is None:
+            run_id = self._run_id(parameters)
+            setattr(self, 'run_id', run_id)
+            subrun_id = None
+
+        else:
+            subrun_id = self._run_id(parameters)
+
+    
+        if not self.file_handler._get_run_directory(run_id, subrun_id).exists():
+            self.file_handler.create_run_directory(run_id, subrun_id)
+            self.logger.log_run(run_id)
+            self.logger.log_params(run_id, params_dict=self.parameters)
+
+    def _run_id(self,  parameters = None):
         """
         Compute a deterministic run identifier based on `parameters`.
 
         The identifier is the first 8 characters of the MD5 hash of the JSON-
-        serialized parameters dictionary (with stable key ordering). Creates
-        the run directory if it does not exist.
+        serialized parameters dictionary (with stable key ordering).
 
         Returns
         -------
-        str
+        run_id : str
             Deterministic run identifier.
         """
         import hashlib, json
-        s = json.dumps(self.parameters, sort_keys=True).encode()
-        run_id = hashlib.md5(s).hexdigest()[:8]
-        setattr(self, 'run_id', run_id)
 
-        if not self.file_handler._get_run_directory(run_id).exists():
-            self.file_handler.create_run_directory(run_id)
-            self.logger.log_run(run_id)
-            self.logger.log_params(run_id, params_dict=self.parameters)
+        if parameters is None:
+            parameters = self.parameters
+        s = json.dumps(parameters, sort_keys=True).encode()
+        run_id = hashlib.md5(s).hexdigest()[:8]
+
+
 
         return run_id
 
@@ -346,7 +372,7 @@ class SimulationMeta(Meta):
         self._compare_attribute_with_argument(**metadict)
         self._set_boundaries()
         self._set_coords()
-        self._run_id()
+        self._create_run()
         return self
 
     @property

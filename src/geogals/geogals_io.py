@@ -24,12 +24,14 @@ results/
 │   │   |
 │   │   └── meta.pkl                 # Saved metadata for the run
 │   │   └── ...                      # Any other data output for the run
+|   |   └── subrun_XXXXXXXX          # Subrun specific directory (related to analysis?)
+|   |                                # with subrun id *
 │   │
 │   └── log.log                      # Log file generated for this galaxy
 
 To be updated as more directory structure added.
 
-* Runs are given a unique identifier which is hashed from the parameters which
+* Runs and subruns are given a unique identifier which is hashed from the parameters which
 define the meta class for that run
 
 There is also a RunIndexer class to provide convenience in searching through
@@ -63,7 +65,7 @@ class RunIndexer:
 
     def __init__(self, galaxy_name, results_base_directory='./results'):
         self.file_handler = FileHandler(galaxy_name, results_base_directory)
-        self.runs = self._run_scan()
+        # self.runs = self._run_scan()
 
     def _run_scan(self):
         """
@@ -200,7 +202,7 @@ class FileHandler:
         results_directory.mkdir(parents=True, exist_ok=True)
         return results_directory
 
-    def create_run_directory(self, run_id):
+    def create_run_directory(self, run_id, subrun_id = None):
         """
         Create a directory for a specific run.
 
@@ -214,11 +216,11 @@ class FileHandler:
         pathlib.Path
             Path to the run directory.
         """
-        run_directory = self._get_run_directory(run_id)
+        run_directory = self._get_run_directory(run_id, subrun_id)
         run_directory.mkdir(exist_ok=True)
         return run_directory
 
-    def _get_run_directory(self, run_id):
+    def _get_run_directory(self, run_id,  subrun_id= None):
         """
         Compute the path to a run directory without creating it.
 
@@ -232,7 +234,12 @@ class FileHandler:
         pathlib.Path
             Path to ``results_directory / f'run_{run_id}'``.
         """
-        return self.results_directory / f'run_{run_id}'
+        if subrun_id is None:
+            return self.results_directory / f'run_{run_id}'
+        else:
+            run_directory = self._get_run_directory(run_id)
+
+            return run_directory / f'subrun_{subrun_id}'
 
     def load_pickle(self, fname, run_id, log=True):
         """
